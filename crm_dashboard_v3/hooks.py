@@ -247,3 +247,18 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+# Tableros CRM
+# ------------
+
+after_install = "crm_dashboard_v3.crm_tableros.common.campos.crear_campos"
+after_migrate = ["crm_dashboard_v3.crm_tableros.common.campos.crear_campos"]
+
+doc_events = {
+	"Opportunity": {
+		"validate": "crm_dashboard_v3.crm_tableros.common.etapas.validar_oportunidad",
+	},
+	"Sales Order": {
+		"on_submit": "crm_dashboard_v3.crm_tableros.common.etapas.sincronizar_ganadas_desde_orden",
+	},
+}
