@@ -107,7 +107,8 @@ TABLERO = ConfigTablero(
 	titulo="CRM Proyectos",
 	establecimientos=("Plus Fontabella Importado",),
 	sales_models=(PROYECTOS, RETAIL),
-	roles_jefe=("Jefe de Plus",),
+	# System Manager ve la tienda completa igual que el jefe de Plus.
+	roles_jefe=("Jefe de Plus", "System Manager"),
 	etapas=ETAPAS,
 	tipo_meta="Monto de VENTA (Sales Invoice)",
 	texto_sales_person_por_modelo=((PROYECTOS, "Proyectos"),),
