@@ -9,28 +9,19 @@ from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_ORDEN_DE_VENTA,
 	CAMPO_PROXIMO_PASO,
 )
-from crm_dashboard_v3.crm_tableros.common.tableros import titulos_de_todas_las_etapas
+from crm_dashboard_v3.crm_tableros.common.tableros import valores_de_etapa
 
 
 def definicion_campos() -> dict:
+	# La etapa es embudo_state_v2 (campo existente); aquí solo los campos nuevos.
 	return {
 		"Opportunity": [
-			{
-				"fieldname": CAMPO_ETAPA,
-				"label": "Etapa CRM",
-				"fieldtype": "Select",
-				"options": "\n" + "\n".join(titulos_de_todas_las_etapas()),
-				"insert_after": "embudo_state_v2",
-				"in_standard_filter": 1,
-				"in_list_view": 1,
-				"description": "La probabilidad y el status se ajustan solos según la etapa.",
-			},
 			{
 				"fieldname": CAMPO_FECHA_RETOMAR,
 				"label": "Fecha para retomar",
 				"fieldtype": "Date",
 				"insert_after": CAMPO_ETAPA,
-				"depends_on": f"eval:doc.{CAMPO_ETAPA}=='En pausa'",
+				"depends_on": f"eval:in_list({valores_de_etapa('pausa')!r}, doc.{CAMPO_ETAPA})",
 			},
 			{
 				"fieldname": CAMPO_PROXIMO_PASO,

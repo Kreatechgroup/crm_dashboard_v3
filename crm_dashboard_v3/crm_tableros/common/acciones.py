@@ -11,8 +11,13 @@ from frappe.utils import add_days, date_diff, getdate, nowdate
 from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_ETAPA,
 	CAMPO_FECHA_PROXIMO_PASO,
+	CAMPO_PRESUPUESTO,
 	CAMPO_PROXIMO_PASO,
 	ConfigModelo,
+	DatosRelacionados,
+	Etapa,
+	etapa_efectiva,
+	faltantes,
 	motivo_valido,
 	texto_paso_de_actividad,
 )
@@ -77,17 +82,38 @@ def registrar_actividad(oportunidad, activity_type: str, comment: str, next_cont
 	return actividad.name
 
 
+def cambiar_etapa(doc, destino: Etapa, cfg: ConfigModelo):
+	"""Cambia la etapa (embudo_state_v2) validando en el servidor los requisitos del destino.
+
+	La probabilidad y el status los ajusta después el hook validate de Opportunity.
+	"""
+	actual = etapa_efectiva(doc, cfg)
+	if actual.status == "Converted" and doc.status == "Converted" and destino.clave != actual.clave:
+		frappe.throw(_("Una oportunidad ganada no puede cambiar de etapa."), title=_("Etapa"))
+	rel = DatosRelacionados(doc.name)
+	falta = faltantes(doc, destino, cfg, rel)
+	if falta:
+		frappe.throw(
+			_("Para pasar a {0} falta: {1}.").format(destino.titulo, ", ".join(falta)),
+			title=_("Faltan datos"),
+		)
+	if destino.actualiza_monto_con_cotizacion and rel.monto_cotizacion:
+		# El monto de la cotización reemplaza al estimado.
+		doc.opportunity_amount = rel.monto_cotizacion
+		doc.set(CAMPO_PRESUPUESTO, rel.monto_cotizacion)
+	doc.set(CAMPO_ETAPA, destino.valor)
+	doc.save()
+	return doc
+
+
 def perder_oportunidad(doc, cfg: ConfigModelo, motivo: str, detalle: str | None = None):
 	"""Lleva la oportunidad a la etapa de pérdida con un Lost Reason válido."""
 	if not motivo_valido(motivo, cfg):
 		frappe.throw(_("Elige un motivo de pérdida específico."), title=_("Motivo de pérdida"))
-	perdida = cfg.por_status("Lost")
 	doc.lost_reason = motivo
 	if detalle:
 		doc.order_lost_reason = detalle
-	doc.set(CAMPO_ETAPA, perdida.titulo)
-	doc.save()
-	return doc
+	return cambiar_etapa(doc, cfg.por_status("Lost"), cfg)
 
 
 def _cotizacion_del_tablero(nombre: str, t: ConfigTablero):
@@ -153,7 +179,7 @@ def perder_cotizacion(nombre: str, t: ConfigTablero, motivo: str, detalle: str |
 	oportunidad = oportunidad_del_tablero(cotizacion.opportunity, t, "write")
 	# ERPNext puede haber dejado la oportunidad en Lost (db_set, sin validate):
 	# en ese caso la etapa se alinea aunque queden otras cotizaciones.
-	ya_perdida = oportunidad.get(CAMPO_ETAPA) == cfg.por_status("Lost").titulo
+	ya_perdida = oportunidad.get(CAMPO_ETAPA) == cfg.por_status("Lost").valor
 	if not ya_perdida and (not vivas or oportunidad.status == "Lost"):
 		perder_oportunidad(oportunidad, cfg, motivo, detalle)
 	return cotizacion.name

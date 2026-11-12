@@ -38,7 +38,6 @@ CAMPOS_OPORTUNIDAD = [
 	"modified",
 	"owner",
 	"asesor_comercial_user_id",
-	"embudo_state_v2",
 	"lost_reason",
 	CAMPO_ETAPA,
 	CAMPO_FECHA_RETOMAR,

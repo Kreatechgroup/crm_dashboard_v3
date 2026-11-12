@@ -13,7 +13,6 @@ from frappe.utils import add_months, flt, getdate
 
 from crm_dashboard_v3.crm_tableros.common import acciones, alcance, entregables, etapas
 from crm_dashboard_v3.crm_tableros.common.etapas import (
-	CAMPO_ETAPA,
 	CAMPO_FECHA_PROXIMO_PASO,
 	CAMPO_FECHA_RETOMAR,
 	CAMPO_ORDEN_DE_VENTA,
@@ -280,7 +279,7 @@ def mover_etapa(
 	motivo: str | None = None,
 	detalle: str | None = None,
 ):
-	"""Cambia la etapa. Los requisitos los valida el hook validate de Opportunity."""
+	"""Cambia la etapa validando en el servidor los requisitos de la etapa destino."""
 	cfg = TABLERO.etapas
 	destino = cfg.etapa(etapa)
 	if not destino:
@@ -291,9 +290,8 @@ def mover_etapa(
 	else:
 		if destino.clave == "pausa":
 			doc.set(CAMPO_FECHA_RETOMAR, fecha_retomar)
-		doc.set(CAMPO_ETAPA, destino.titulo)
-		doc.save()
-	return {"name": doc.name, "etapa": doc.get(CAMPO_ETAPA), "probability": doc.probability, "status": doc.status}
+		acciones.cambiar_etapa(doc, destino, cfg)
+	return {"name": doc.name, "etapa": destino.titulo, "probability": doc.probability, "status": doc.status}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -364,9 +362,9 @@ def vincular_orden_de_venta(nombre: str, sales_order: str):
 	if ligada and ligada != doc.name:
 		frappe.throw(_("La orden de venta {0} ya está ligada a {1}.").format(sales_order, ligada))
 	doc.set(CAMPO_ORDEN_DE_VENTA, sales_order)
-	doc.set(CAMPO_ETAPA, TABLERO.etapas.por_status("Converted").titulo)
-	doc.save()
-	return {"name": doc.name, "status": doc.status, "etapa": doc.get(CAMPO_ETAPA)}
+	ganada = TABLERO.etapas.por_status("Converted")
+	acciones.cambiar_etapa(doc, ganada, TABLERO.etapas)
+	return {"name": doc.name, "status": doc.status, "etapa": ganada.titulo}
 
 
 @frappe.whitelist(methods=["POST"])

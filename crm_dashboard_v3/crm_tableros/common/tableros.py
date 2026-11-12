@@ -66,10 +66,11 @@ def tablero_de_oportunidad(doc) -> ConfigTablero | None:
 	return tablero_de(doc.get("sales_model"), doc.get("establecimiento_lista"))
 
 
-def titulos_de_todas_las_etapas() -> list[str]:
-	titulos: list[str] = []
+def valores_de_etapa(clave: str) -> list[str]:
+	"""Valores de embudo_state_v2 que escriben los tableros para una etapa (p. ej. "pausa")."""
+	valores = []
 	for t in todos():
-		for etapa in t.etapas.etapas:
-			if etapa.titulo not in titulos:
-				titulos.append(etapa.titulo)
-	return titulos
+		etapa = t.etapas.etapa(clave)
+		if etapa and etapa.valor not in valores:
+			valores.append(etapa.valor)
+	return valores

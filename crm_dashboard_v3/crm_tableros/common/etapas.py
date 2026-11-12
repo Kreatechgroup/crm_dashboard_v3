@@ -12,7 +12,10 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate, nowdate
 
-CAMPO_ETAPA = "custom_etapa_crm"
+# La etapa vive en el campo que ya usan scripts, reportes y notificaciones del ERP.
+# Sus 17 valores se agrupan en las etapas nuevas (ConfigModelo.mapa_valores) y, al
+# mover una etapa, se escribe el valor representativo de la etapa (Etapa.valor).
+CAMPO_ETAPA = "embudo_state_v2"
 CAMPO_FECHA_RETOMAR = "custom_fecha_retomar"
 CAMPO_PROXIMO_PASO = "custom_proximo_paso"
 CAMPO_FECHA_PROXIMO_PASO = "custom_fecha_proximo_paso"
@@ -30,6 +33,8 @@ class Etapa:
 	activa: bool
 	requisitos: tuple[str, ...]
 	texto_requisitos: str
+	# Valor de embudo_state_v2 que se escribe al mover a esta etapa.
+	valor: str = ""
 	status: str | None = None
 	cuenta_pronostico: bool = True
 	actualiza_monto_con_cotizacion: bool = False
@@ -41,8 +46,8 @@ class ConfigModelo:
 
 	nombre: str
 	etapas: tuple[Etapa, ...]
-	# Valor viejo de embudo_state_v2 -> clave de etapa nueva (lectura y migración).
-	mapa_legado: dict[str, str]
+	# Valor de embudo_state_v2 -> clave de la etapa a la que pertenece.
+	mapa_valores: dict[str, str]
 	umbral_escalar: float
 	dias_verde_max: int
 	dias_amarillo_max: int
@@ -50,13 +55,13 @@ class ConfigModelo:
 	# Orden de lectura del monto: el primero > 0 gana; si ninguno, la cotización más alta.
 	campos_monto: tuple[str, ...] = (CAMPO_PRESUPUESTO, "opportunity_amount")
 	campos_fecha_cierre: tuple[str, ...] = ("fecha_estimada_aprobacion", "expected_closing")
-	campo_etapa_legado: str = "embudo_state_v2"
 
 	def etapa(self, clave: str | None) -> Etapa | None:
 		return next((e for e in self.etapas if e.clave == clave), None)
 
-	def por_titulo(self, titulo: str | None) -> Etapa | None:
-		return next((e for e in self.etapas if e.titulo == titulo), None)
+	def por_valor(self, valor: str | None) -> Etapa | None:
+		"""Etapa a la que pertenece un valor de embudo_state_v2 (None si no se reconoce)."""
+		return self.etapa(self.mapa_valores.get(valor or ""))
 
 	def por_status(self, status: str) -> Etapa | None:
 		return next((e for e in self.etapas if e.status == status), None)
@@ -86,14 +91,8 @@ class ConfigModelo:
 
 
 def etapa_efectiva(row, cfg: ConfigModelo) -> Etapa:
-	"""Etapa nueva si existe; si no, la equivalente del valor viejo; si no, por status."""
-	etapa = cfg.por_titulo(row.get(CAMPO_ETAPA))
-	if etapa:
-		return etapa
-	etapa = cfg.etapa(cfg.mapa_legado.get(row.get(cfg.campo_etapa_legado) or ""))
-	if etapa:
-		return etapa
-	return cfg.por_status(row.get("status")) or cfg.activas[0]
+	"""Etapa según embudo_state_v2; si está vacío o no se reconoce, según el status."""
+	return cfg.por_valor(row.get(CAMPO_ETAPA)) or cfg.por_status(row.get("status")) or cfg.activas[0]
 
 
 def es_incoherente(row, cfg: ConfigModelo) -> bool:

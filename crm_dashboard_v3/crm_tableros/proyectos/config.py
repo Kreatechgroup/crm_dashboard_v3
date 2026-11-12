@@ -22,6 +22,7 @@ ETAPAS = ConfigModelo(
 			activa=True,
 			requisitos=("cliente", "tipo", "origen"),
 			texto_requisitos="cliente, tipo y origen",
+			valor="Investigar al cliente",
 		),
 		Etapa(
 			"req",
@@ -30,6 +31,7 @@ ETAPAS = ConfigModelo(
 			activa=True,
 			requisitos=("monto", "fecha_cierre", "proximo_paso"),
 			texto_requisitos="presupuesto, fecha estimada y próximo paso",
+			valor="Tomar requerimiento",
 		),
 		Etapa(
 			"prop",
@@ -38,6 +40,7 @@ ETAPAS = ConfigModelo(
 			activa=True,
 			requisitos=("cotizacion_enviada", "fecha_cierre", "proximo_paso"),
 			texto_requisitos="cotización enviada ligada",
+			valor="Presentar cotización",
 			actualiza_monto_con_cotizacion=True,
 		),
 		Etapa(
@@ -47,6 +50,7 @@ ETAPAS = ConfigModelo(
 			activa=True,
 			requisitos=("monto", "fecha_cierre", "proximo_paso_vigente"),
 			texto_requisitos="próximo paso con fecha vigente",
+			valor="Negociar",
 		),
 		Etapa(
 			"pausa",
@@ -55,6 +59,7 @@ ETAPAS = ConfigModelo(
 			activa=False,
 			requisitos=("fecha_retomar",),
 			texto_requisitos="fecha para retomar",
+			valor="Llamar después",
 			cuenta_pronostico=False,
 		),
 		Etapa(
@@ -64,6 +69,7 @@ ETAPAS = ConfigModelo(
 			activa=False,
 			requisitos=("orden_de_venta",),
 			texto_requisitos="orden de venta creada",
+			valor="Ganada",
 			status="Converted",
 		),
 		Etapa(
@@ -73,11 +79,13 @@ ETAPAS = ConfigModelo(
 			activa=False,
 			requisitos=("motivo_perdida",),
 			texto_requisitos="motivo de pérdida",
+			valor="Perdida",
 			status="Lost",
 			cuenta_pronostico=False,
 		),
 	),
-	mapa_legado={
+	# Los 17 valores de embudo_state_v2 agrupados en las etapas nuevas (especificación).
+	mapa_valores={
 		"Investigar al cliente": "cal",
 		"Clasificar": "cal",
 		"Presentar empresa": "cal",
