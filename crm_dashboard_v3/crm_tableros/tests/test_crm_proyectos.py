@@ -177,6 +177,23 @@ class TestCriterio3PropuestasVencidas(BaseCRMProyectos):
 			api.perder_cotizacion(q.name, "Especificar motivo")
 		self.assertIn(q.name, self._nombres_vencidas(op))
 
+	def test_perder_con_otra_vigente_tambien_pierde_la_oportunidad(self):
+		op, q = self._vencida()
+		crear_cotizacion(op, valid_till=add_days(nowdate(), 10), transaction_date=add_days(nowdate(), -40))
+		api.perder_cotizacion(q.name, MOTIVO_PRUEBA)
+		op.reload()
+		self.assertEqual(frappe.db.get_value("Quotation", q.name, "status"), "Lost")
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("perdida").valor)
+		self.assertEqual(op.status, "Lost")
+
+	def test_perder_bloqueado_por_workflow_no_toca_la_cotizacion(self):
+		op, q = self._vencida()
+		with patch.object(flujo, "bloqueo", return_value="El workflow no permite pasar a Perdida"):
+			with self.assertRaises(frappe.ValidationError):
+				api.perder_cotizacion(q.name, MOTIVO_PRUEBA)
+		self.assertNotEqual(frappe.db.get_value("Quotation", q.name, "status"), "Lost")
+		self.assertIn(q.name, self._nombres_vencidas(op))
+
 
 class TestCriterio4GanadaConverted(BaseCRMProyectos):
 	"""4. Una oportunidad en Ganada siempre tiene status = Converted (y Perdida = Lost)."""
