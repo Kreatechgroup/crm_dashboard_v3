@@ -169,8 +169,11 @@ Escribe pruebas (`FrappeTestCase`) para cada criterio.
 
 ## 6. Forma de trabajo
 
+> **REGLA OBLIGATORIA · PRODUCCIÓN ES SOLO LECTURA**
+> En producción (https://creativegt.kreatechgroup.com, sitio `creative.com.gt`, el ERPNext del conector MCP) **solo se consulta**. Por ningún motivo crear, modificar, cancelar, enviar (submit), renombrar ni eliminar **nada**: documentos, registros, configuración (workflows, permisos, Custom Fields, Property Setters, scripts, reportes, notificaciones), código, archivos ni apps. Tampoco ejecutar acciones que escriban de forma indirecta (métodos whitelisted que guardan, `run_workflow`, `submit_document`, `update_document`, `create_document`, patches, `bench` contra producción). Los cambios en producción los hace el responsable del ERP; aquí solo se proponen, por escrito.
+
 - Antes de programar, propón un plan corto (archivos, campos, patches, métodos) y espera mi visto bueno.
-- Para conocer datos reales usa solo consultas de lectura. **Nunca** crees, modifiques, cancele o borres registros del ERP de producción durante el desarrollo.
+- Para conocer datos reales usa solo consultas de lectura (SELECT / listados). Si una consulta pudiera escribir algo, no se ejecuta.
 - Todo cambio de esquema va como Custom Field/fixture o patch versionado e idempotente; nada manual desde el escritorio.
 - Patches que tocan datos existentes (migración de etapas, cierre de ToDos, Panamá): primero modo "simulación" con conteos, luego ejecución con mi confirmación.
 - Commits pequeños y descriptivos por bloque (campos, etapas, API, página, patches, pruebas).
