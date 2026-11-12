@@ -3,18 +3,22 @@
 Este repositorio construye los tableros CRM que reemplazan al **CRM Dashboard V2** (DocType de la app `custom_crm`).
 Habrá dos tableros:
 
-| Tablero | Modelo de venta | Estado |
+| Tablero | A quién atiende | Estado |
 |---|---|---|
-| **Tablero 2 · CRM Proyectos** | `Opportunity.sales_model = "Proyectos"` | **En construcción ahora** |
-| Tablero 1 · CRM Retail | `Opportunity.sales_model = "Retail"` | Fase siguiente. **No implementar todavía.** |
+| **Tablero 2 · CRM Proyectos** | Asesores de **Plus** (Plus Fontabella Importado). Junta sus **dos Sales Person**: el de Proyectos ("Asesor de Proyectos Retail X - UM") y el de Retail ("Asesor Retail X - UM"); `sales_model` Proyectos **y** Retail | **En construcción ahora** |
+| Tablero 1 · CRM Retail | Asesores de **Abito** (Abito GT y Abito PA), `sales_model = "Retail"` | Fase siguiente. **No implementar todavía.** |
 
-La especificación vigente está en `docs/` (Especificación CRM Proyectos). Léela completa antes de escribir código; si algo de este archivo contradice la especificación, manda la especificación y avísame de la diferencia.
+**Vistas por persona** (aclarado por el negocio el 2026-11-12):
+- Cada asesor ve **solo su información**.
+- La vista de **tienda** ("Toda la tienda" + elegir a cada asesor + resumen por asesor) es solo para los jefes: **jefe de Plus** (Aura Rodríguez, rol `Jefe de Plus`), **jefe de Abito** (rol `Jefe de Abito`) y **Antonio Camargo** (tiene los dos roles). El rol genérico "Asociado" no da vista de jefe.
+
+La especificación está en `docs/` (PDF de Proyectos y de Retail) y el prototipo navegable en `docs/mockup.html`. Para CRM Proyectos **manda el mockup** donde difiere del PDF (alcance Plus con dos Sales Person, monto y fecha en `presupuesto_declarado_por_el_cliente` / `fecha_estimada_aprobacion`, facturado por Comisiones Asesor de la orden de venta). Si encuentras otra diferencia, avísame.
 
 ---
 
 ## 1. Alcance de esta fase
 
-Construye **solo el tablero de Proyectos** y los **cambios comunes** que pide su especificación (sección 3 del PDF).
+Construye **solo el tablero de Proyectos (Plus)** y los **cambios comunes** que pide su especificación (sección 3 del PDF).
 Pero diseña todo lo compartido pensando en que después se agregará Retail sobre la misma base, sin duplicar código.
 
 No hagas en esta fase:
@@ -24,14 +28,14 @@ No hagas en esta fase:
 
 Sí deja preparado:
 - Un módulo común reutilizable (ver sección 3).
-- Que cualquier filtro por modelo de venta sea un **parámetro** (`sales_model`), nunca un valor escrito dentro de la lógica.
-- Que las etapas y probabilidades vivan en una configuración por modelo de venta, para que Retail agregue las suyas.
+- Que cualquier filtro por modelo de venta o establecimiento sea **configuración del tablero** (`ConfigTablero` en `crm_tableros/<tablero>/config.py`), nunca un valor escrito dentro de la lógica.
+- Que las etapas y probabilidades vivan en la configuración de cada tablero, para que Retail agregue las suyas. Qué etapas aplican a una oportunidad se decide por su `sales_model` y su `establecimiento_lista` (las Retail de Plus usan las de Proyectos; las de Abito usarán las de Retail).
 
 ---
 
 ## 2. Implementación
 
-- Una **Page de Frappe** llamada `crm-proyectos` dentro de la app `custom_crm` (la futura será `crm-retail`).
+- Una **Page de Frappe** llamada `crm-proyectos` ("CRM Proyectos", para Plus) dentro de la app (la futura será `crm-retail`, "CRM Retail", para Abito PA y Abito GT).
 - **No** se crea un documento por asesor. Los 35 registros de `CRM Dashboard V2` dejan de usarse (no los borres; eso lo decide el negocio).
 - Todo el cálculo pesado va en **métodos Python whitelisted** (agregaciones en servidor con SQL/`frappe.qb`), no en el navegador.
 - El JavaScript de la página solo pinta y llama acciones.
@@ -66,7 +70,7 @@ Ajusta los nombres si el repositorio ya tiene otra convención; respeta la exist
 ## 3. Base común (servirá a los dos tableros)
 
 **Contexto de sesión** (`contexto.py`), sin filtros manuales:
-- `Sales Person.user = frappe.session.user` → asesor. Un mismo usuario puede tener más de un Sales Person (por ejemplo uno Retail "- UM" y uno de Proyectos); el tablero de Proyectos usa el de proyectos.
+- `Sales Person.user = frappe.session.user` (o su empleado) → asesor. Un mismo usuario tiene varios Sales Person; el tablero toma **todos los del asesor en sus establecimientos** (en Plus, el de Proyectos y el de Retail) y separa por modelo cuando hace falta.
 - Empresa: Umob S.A. o Grupo Creative, S.A. / Panamá, derivada del Sales Person o del empleado.
 - Periodo por defecto: del día 1 al último día del mes en curso. Debe aceptar un mes anterior como parámetro.
 - Si el usuario no tiene Sales Person, muestra un mensaje claro; no falles con error.
@@ -113,8 +117,11 @@ Antes de migrar, genera un reporte de cuántas oportunidades hay en cada etapa v
 
 ### 4.2 Indicadores
 
-- **Universo**: Opportunity con `sales_model = "Proyectos"`, del asesor (`owner` o `asesor_comercial_user_id`), con status distinto de Lost, Converted y Closed.
-- **Meta proyectos**: Tabla de metas del Sales Person de proyectos (ej. "Asesor de Proyectos Retail Guillermo González - UM"), contra lo ganado en el mes (órdenes o facturas de oportunidades de proyectos cerradas en el mes).
+- **Universo**: Opportunity con `sales_model` Proyectos o Retail y `establecimiento_lista` de Plus, del asesor (`owner` o `asesor_comercial_user_id`), con status distinto de Lost, Converted y Closed. El embudo filtra "Proyectos y Retail / Solo Proyectos / Solo Retail".
+- **Meta**: Tabla de metas de los dos Sales Person del asesor (ej. 171,000 + 171,000 = 342,000), contra lo facturado en el mes: facturas atribuidas por la tabla **Comisiones Asesor** de su orden de venta (× distribución) más las que el asesor creó sin orden; el modelo de cada factura es el "Modelo de Venta" de la orden (`sales_model_1`).
+- **Consolidado por asesor** (Proyectos / Retail / Total): meta, facturado, órdenes de venta, cotizado, cotizaciones vigentes, oportunidades; documentos vinculados (oportunidad → cotización → orden → factura); comisión factura por factura (cobrado × distribución × `commission_rate` ÷ 100).
+- **Monto y fecha de cierre**: `presupuesto_declarado_por_el_cliente` y `fecha_estimada_aprobacion` (los que llenan los asesores); si no hay, `opportunity_amount` / `expected_closing`.
+- **Próximo paso**: `custom_proximo_paso` / `custom_fecha_proximo_paso`; si están vacíos, tipo y `next_contact_date` de la última Opportunity Activity.
 - **Propuestas vigentes**: oportunidades en etapa 3 o 4 → Σ `opportunity_amount` y conteo.
 - **Pronóstico ponderado**: Σ `opportunity_amount × probabilidad` de todas las activas. Mostrar cuántas tienen `expected_closing`; si falta alguna, etiqueta "Faltan fechas". El pronóstico del mes solo suma las que cierran dentro del mes. En Pausa no cuenta.
 - **Propuestas vencidas**: Quotation `docstatus = 1`, ligada a oportunidad activa de proyectos, `valid_till < hoy` y sin orden de venta → Σ `base_grand_total` y conteo. Lista lateral ordenada por monto con botones **Renovar** (copia con nueva `valid_till`) y **Perder** (flujo de Lost Reason).
@@ -126,7 +133,7 @@ Antes de migrar, genera un reporte de cuántas oportunidades hay en cada etapa v
 - **ToDos automáticos**: desactivar la asignación automática que crea "Asignación para Opportunity" y cerrar en bloque los ToDo abiertos de ese tipo (Marielos sola tiene ~900). El cierre en bloque se hace con un patch que primero **cuenta y me muestra** cuántos cerraría por usuario, y solo corre con mi confirmación.
 - **Retirar la Nota CRM** como indicador (le daba peso 0 a la venta facturada).
 - **Tienda Panamá**: las visitas con `establecimiento = "Grupo Creative"` se asignan a Abito Panamá (Dream Plaza). Aunque Visit Log es de Retail, este cambio está en la especificación común; prepáralo como patch separado y pregúntame antes de correrlo.
-- **`custom_sales_model`** en Sales Order y Sales Invoice, heredado de la oportunidad (vía Quotation → Sales Order → Sales Invoice). Retail lo usará para separar su facturado en Plus.
+- **`custom_sales_model`** en Sales Order y Sales Invoice, heredado de la oportunidad (vía Quotation → Sales Order → Sales Invoice). **Pendiente de decidir**: Sales Order ya tiene `sales_model_1` ("Modelo de Venta") y Quotation `sales_model`; el tablero usa `sales_model_1` de la orden.
 
 ### 4.4 Criterios de aceptación
 
@@ -171,6 +178,6 @@ Escribe pruebas (`FrappeTestCase`) para cada criterio.
 Cuando llegue la especificación de Retail a `docs/`, se agregará sobre la base común:
 - Página `crm-retail` con la meta del mes ("Monto de VENTA (Sales Invoice)"), facturado neto de notas de crédito por Sales Team, ritmo esperado, proyección al cierre, embudo desde Visit Log y la lista de cotizaciones del día.
 - Etapas propias: Cotizada → Seguimiento (máx. 14 días) → Ganada / Perdida + motivo.
-- En Plus, el mismo asesor verá su parte Retail en ese tablero y su parte de proyectos en este.
+- Es para los asesores de **Abito** (GT y PA); los de Plus no lo usan: su parte Retail ya está en CRM Proyectos.
 
 Por eso: no metas lógica de Proyectos dentro de `common/`, y no asumas que un usuario tiene un solo Sales Person.
