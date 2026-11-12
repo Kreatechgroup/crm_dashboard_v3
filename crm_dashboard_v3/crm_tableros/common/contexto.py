@@ -1,4 +1,10 @@
-"""Contexto de sesión: usuario -> empleado, Sales Person(s), empresa, establecimiento y periodo."""
+"""Contexto de sesión: usuario -> empleado, Sales Person(s), empresa, establecimiento y periodo.
+
+- Un asesor ve solo su información: todos sus Sales Person del tablero juntos
+  (en Plus, el de Proyectos y el de Retail).
+- Un jefe (rol configurado en el tablero) ve la tienda completa y puede elegir
+  a cada asesor.
+"""
 
 from dataclasses import dataclass, field
 from datetime import date
@@ -7,8 +13,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_months, get_first_day, get_last_day, getdate, nowdate
 
-from crm_dashboard_v3.crm_tableros.common.etapas import ConfigModelo
 from crm_dashboard_v3.crm_tableros.common.formato import etiqueta_mes
+from crm_dashboard_v3.crm_tableros.common.tableros import ConfigTablero
 
 MESES_SELECCIONABLES = 6
 
@@ -18,8 +24,11 @@ class Asesor:
 	empleado: str | None
 	nombre: str
 	usuario: str
-	# Todos los Sales Person del asesor en la empresa (un usuario puede tener varios).
-	sales_persons: list[str] = field(default_factory=list)
+	# Sales Person del asesor en el establecimiento: nombre -> modelo de venta.
+	sales_persons: dict[str, str] = field(default_factory=dict)
+
+	def sales_persons_de(self, modelo: str | None = None) -> list[str]:
+		return [sp for sp, m in self.sales_persons.items() if modelo in (None, m)]
 
 
 @dataclass
@@ -33,8 +42,7 @@ class Contexto:
 	company: str | None = None
 	moneda: str | None = None
 	establecimiento: str | None = None
-	sales_persons: list[str] = field(default_factory=list)
-	sales_persons_modelo: list[str] = field(default_factory=list)
+	sales_persons: dict[str, str] = field(default_factory=dict)
 	es_jefe: bool = False
 	establecimientos: list[str] = field(default_factory=list)
 	mensaje: str | None = None
@@ -46,8 +54,12 @@ class Contexto:
 		total = (self.hasta - self.desde).days + 1
 		return max(0, (corte - self.desde).days + 1) / total
 
+	@property
+	def dia_de_corte(self) -> date:
+		return min(self.hoy, self.hasta)
+
 	def como_asesor(self) -> Asesor:
-		return Asesor(self.empleado, self.nombre, self.usuario, list(self.sales_persons))
+		return Asesor(self.empleado, self.nombre, self.usuario, dict(self.sales_persons))
 
 
 def periodo(mes: str | None = None) -> tuple[date, date]:
@@ -73,8 +85,8 @@ def meses_disponibles(cantidad: int = MESES_SELECCIONABLES) -> list[dict]:
 	return meses
 
 
-def _sales_persons_de(usuario: str, empleado: str | None) -> list:
-	"""Sales Person del usuario: por ``user`` o por el empleado ligado.
+def _sales_persons_del_usuario(t: ConfigTablero, usuario: str, empleado: str | None) -> list:
+	"""Sales Person del usuario (por ``user`` o por su empleado) en los establecimientos del tablero.
 
 	get_all: son los registros del propio usuario; los asesores no siempre tienen
 	permiso de lectura sobre Sales Person y sin esto no podrían ver su tablero.
@@ -84,20 +96,20 @@ def _sales_persons_de(usuario: str, empleado: str | None) -> list:
 		or_filters["employee"] = empleado
 	return frappe.get_all(
 		"Sales Person",
-		filters={"enabled": 1, "is_group": 0},
+		filters={"enabled": 1, "is_group": 0, "establecimiento": ["in", list(t.establecimientos)]},
 		or_filters=or_filters,
 		fields=["name", "company", "establecimiento"],
 		order_by="name asc",
 	)
 
 
-def obtener(cfg: ConfigModelo, mes: str | None = None, establecimiento: str | None = None, usuario=None) -> Contexto:
+def obtener(t: ConfigTablero, mes: str | None = None, establecimiento: str | None = None, usuario=None) -> Contexto:
 	usuario = usuario or frappe.session.user
 	desde, hasta = periodo(mes)
 	empleado = frappe.db.get_value(
 		"Employee",
 		{"user_id": usuario, "status": "Active"},
-		["name", "employee_name", "company"],
+		["name", "employee_name"],
 		as_dict=True,
 	)
 	nombre = (empleado and empleado.employee_name) or frappe.utils.get_fullname(usuario)
@@ -108,42 +120,47 @@ def obtener(cfg: ConfigModelo, mes: str | None = None, establecimiento: str | No
 		hasta=hasta,
 		hoy=getdate(nowdate()),
 		empleado=empleado.name if empleado else None,
-		es_jefe=bool(set(frappe.get_roles(usuario)) & set(cfg.roles_jefe)),
+		es_jefe=es_jefe(t, usuario),
 	)
-
-	sps = _sales_persons_de(usuario, ctx.empleado)
-	del_modelo = [s for s in sps if cfg.texto_sales_person in s.name]
-	ctx.company = (
-		(empleado and empleado.company)
-		or (del_modelo and del_modelo[0].company)
-		or frappe.defaults.get_user_default("Company", usuario)
-	)
-	ctx.sales_persons = [s.name for s in sps if s.company == ctx.company]
-	ctx.sales_persons_modelo = [s.name for s in del_modelo if s.company == ctx.company]
-	propio = next((s.establecimiento for s in del_modelo if s.company == ctx.company and s.establecimiento), None)
-	ctx.moneda = frappe.get_cached_value("Company", ctx.company, "default_currency") if ctx.company else None
 
 	if ctx.es_jefe:
-		ctx.establecimientos = establecimientos_del_modelo(cfg, ctx.company)
+		ctx.establecimientos = establecimientos_con_asesores(t)
 		if establecimiento and establecimiento not in ctx.establecimientos:
-			frappe.throw(_("No hay asesores de {0} en el establecimiento {1}.").format(cfg.sales_model, establecimiento))
-		ctx.establecimiento = establecimiento or (
-			propio if propio in ctx.establecimientos else next(iter(ctx.establecimientos), None)
+			frappe.throw(_("{0} no atiende el establecimiento {1}.").format(t.titulo, establecimiento))
+		propios = [s.establecimiento for s in _sales_persons_del_usuario(t, usuario, ctx.empleado)]
+		ctx.establecimiento = establecimiento or next(
+			(e for e in propios if e in ctx.establecimientos), next(iter(ctx.establecimientos), None)
 		)
 		if not ctx.establecimiento:
-			ctx.mensaje = _("No hay asesores de {0} configurados en {1}.").format(cfg.sales_model, ctx.company or "")
+			ctx.mensaje = _("No hay asesores activos en {0}.").format(", ".join(t.establecimientos))
+			return ctx
+		ctx.company = frappe.db.get_value(
+			"Sales Person", {"establecimiento": ctx.establecimiento, "enabled": 1, "is_group": 0}, "company"
+		)
 	else:
-		ctx.establecimiento = propio
-		if not ctx.sales_persons_modelo:
+		sps = _sales_persons_del_usuario(t, usuario, ctx.empleado)
+		if not sps:
 			ctx.mensaje = _(
-				"Tu usuario no tiene un Sales Person de {0} activo. Pide a tu jefe que lo configure para ver este tablero."
-			).format(cfg.sales_model)
+				"{0} es para los asesores de {1}. Tu usuario no tiene un Sales Person activo ahí; "
+				"si debería tenerlo, pide a tu jefe que lo configure."
+			).format(t.titulo, ", ".join(t.establecimientos))
+			return ctx
+		ctx.establecimiento = sps[0].establecimiento
+		ctx.company = sps[0].company
+		ctx.sales_persons = {
+			s.name: t.modelo_de_sales_person(s.name)
+			for s in sps
+			if s.establecimiento == ctx.establecimiento and s.company == ctx.company
+		}
+	ctx.moneda = frappe.get_cached_value("Company", ctx.company, "default_currency") if ctx.company else None
 	return ctx
 
 
-def establecimientos_del_modelo(cfg: ConfigModelo, company: str | None) -> list[str]:
-	if not company:
-		return []
+def es_jefe(t: ConfigTablero, usuario: str) -> bool:
+	return bool(set(frappe.get_roles(usuario)) & set(t.roles_jefe))
+
+
+def establecimientos_con_asesores(t: ConfigTablero) -> list[str]:
 	return sorted(
 		set(
 			frappe.get_all(
@@ -151,9 +168,8 @@ def establecimientos_del_modelo(cfg: ConfigModelo, company: str | None) -> list[
 				filters={
 					"enabled": 1,
 					"is_group": 0,
-					"company": company,
-					"establecimiento": ["is", "set"],
-					"name": ["like", f"%{cfg.texto_sales_person}%"],
+					"establecimiento": ["in", list(t.establecimientos)],
+					"employee": ["is", "set"],
 				},
 				pluck="establecimiento",
 			)
@@ -161,34 +177,43 @@ def establecimientos_del_modelo(cfg: ConfigModelo, company: str | None) -> list[
 	)
 
 
-def asesores_de_tienda(cfg: ConfigModelo, company: str, establecimiento: str) -> list[Asesor]:
-	"""Asesores con Sales Person del modelo en la tienda, con empleado activo y usuario."""
+def asesores_de_tienda(t: ConfigTablero, establecimiento: str) -> list[Asesor]:
+	"""Asesores con Sales Person en la tienda, empleado activo y usuario.
+
+	Los jefes del tablero (por rol) no se cuentan como asesores aunque tengan
+	Sales Person en la tienda.
+	"""
 	sps = frappe.get_all(
 		"Sales Person",
-		filters={
-			"enabled": 1,
-			"is_group": 0,
-			"company": company,
-			"establecimiento": establecimiento,
-			"employee": ["is", "set"],
-			"name": ["like", f"%{cfg.texto_sales_person}%"],
-		},
-		pluck="employee",
+		filters={"enabled": 1, "is_group": 0, "establecimiento": establecimiento, "employee": ["is", "set"]},
+		fields=["name", "employee"],
 	)
 	if not sps:
 		return []
 	empleados = frappe.get_all(
 		"Employee",
-		filters={"name": ["in", list(set(sps))], "status": "Active", "user_id": ["is", "set"]},
+		filters={"name": ["in", list({s.employee for s in sps})], "status": "Active", "user_id": ["is", "set"]},
 		fields=["name", "employee_name", "user_id"],
 	)
-	todos = frappe.get_all(
-		"Sales Person",
-		filters={"enabled": 1, "is_group": 0, "company": company, "employee": ["in", [e.name for e in empleados]]},
-		fields=["name", "employee"],
+	jefes = set(
+		frappe.get_all(
+			"Has Role",
+			filters={
+				"parenttype": "User",
+				"parent": ["in", [e.user_id for e in empleados] or [""]],
+				"role": ["in", list(t.roles_jefe)],
+			},
+			pluck="parent",
+		)
 	)
 	asesores = [
-		Asesor(e.name, e.employee_name, e.user_id, [s.name for s in todos if s.employee == e.name])
+		Asesor(
+			e.name,
+			e.employee_name,
+			e.user_id,
+			{s.name: t.modelo_de_sales_person(s.name) for s in sps if s.employee == e.name},
+		)
 		for e in empleados
+		if e.user_id not in jefes
 	]
 	return sorted(asesores, key=lambda a: a.nombre)

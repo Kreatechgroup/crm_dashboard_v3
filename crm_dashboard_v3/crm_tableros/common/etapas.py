@@ -1,12 +1,11 @@
-"""Configuración de etapas por modelo de venta y reglas de servidor de la Opportunity.
+"""Etapas de la oportunidad, sus requisitos y la lectura de montos, fechas y próximo paso.
 
-Este módulo no contiene lógica de un tablero concreto: cada modelo de venta
-(Proyectos hoy, Retail en la fase siguiente) declara sus etapas en
-``crm_tableros/<modelo>/config.py`` y aquí solo se interpretan.
+Este módulo no contiene lógica de un tablero concreto: cada tablero declara sus
+etapas en ``crm_tableros/<tablero>/config.py`` y aquí solo se interpretan. Qué
+etapas aplican a cada oportunidad lo decide ``common/tableros.py``.
 """
 
-import importlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cached_property
 
 import frappe
@@ -15,11 +14,10 @@ from frappe.utils import flt, getdate, nowdate
 
 CAMPO_ETAPA = "custom_etapa_crm"
 CAMPO_FECHA_RETOMAR = "custom_fecha_retomar"
+CAMPO_PROXIMO_PASO = "custom_proximo_paso"
+CAMPO_FECHA_PROXIMO_PASO = "custom_fecha_proximo_paso"
+CAMPO_PRESUPUESTO = "presupuesto_declarado_por_el_cliente"
 STATUS_CERRADOS = ("Lost", "Converted", "Closed")
-
-# Modelos de venta que ya tienen configuración propia. Retail se agrega aquí
-# cuando exista crm_tableros/retail/config.py.
-MODELOS_CONFIGURADOS = ("Proyectos",)
 
 
 @dataclass(frozen=True)
@@ -37,22 +35,20 @@ class Etapa:
 
 @dataclass(frozen=True)
 class ConfigModelo:
-	sales_model: str
+	"""Etapas y reglas del embudo de un tablero."""
+
+	nombre: str
 	etapas: tuple[Etapa, ...]
 	# Valor viejo de embudo_state_v2 -> clave de etapa nueva (lectura y migración).
 	mapa_legado: dict[str, str]
-	tipo_meta: str
-	# Texto que distingue al Sales Person de este modelo (un usuario puede tener varios).
-	texto_sales_person: str
 	umbral_escalar: float
 	dias_verde_max: int
 	dias_amarillo_max: int
 	motivos_perdida_excluidos: tuple[str, ...]
-	roles_jefe: tuple[str, ...]
-	campos_monto: tuple[str, ...] = ("opportunity_amount", "presupuesto_declarado_por_el_cliente")
+	# Orden de lectura del monto: el primero > 0 gana; si ninguno, la cotización más alta.
+	campos_monto: tuple[str, ...] = (CAMPO_PRESUPUESTO, "opportunity_amount")
 	campos_fecha_cierre: tuple[str, ...] = ("fecha_estimada_aprobacion", "expected_closing")
 	campo_etapa_legado: str = "embudo_state_v2"
-	extras: dict = field(default_factory=dict)
 
 	def etapa(self, clave: str | None) -> Etapa | None:
 		return next((e for e in self.etapas if e.clave == clave), None)
@@ -80,23 +76,6 @@ class ConfigModelo:
 		if clave not in claves or claves.index(clave) == 0:
 			return None
 		return self.activas[claves.index(clave) - 1]
-
-
-def config_de(sales_model: str | None) -> ConfigModelo | None:
-	"""Configuración del modelo de venta, o None si el modelo no tiene tablero."""
-	if sales_model not in MODELOS_CONFIGURADOS:
-		return None
-	modulo = importlib.import_module(f"crm_dashboard_v3.crm_tableros.{frappe.scrub(sales_model)}.config")
-	return modulo.CONFIG
-
-
-def titulos_de_todas_las_etapas() -> list[str]:
-	titulos: list[str] = []
-	for modelo in MODELOS_CONFIGURADOS:
-		for etapa in config_de(modelo).etapas:
-			if etapa.titulo not in titulos:
-				titulos.append(etapa.titulo)
-	return titulos
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +113,27 @@ def fecha_cierre_de(row, cfg: ConfigModelo):
 		if row.get(campo):
 			return getdate(row.get(campo))
 	return None
+
+
+def proximo_paso_de(row, ultima_actividad=None) -> frappe._dict:
+	"""Próximo paso de la oportunidad: sus campos propios o, si están vacíos, la última actividad.
+
+	Devuelve ``texto`` y ``fecha`` (date o None).
+	"""
+	texto = (row.get(CAMPO_PROXIMO_PASO) or "").strip()
+	fecha = row.get(CAMPO_FECHA_PROXIMO_PASO)
+	if texto or fecha:
+		return frappe._dict(texto=texto, fecha=getdate(fecha) if fecha else None)
+	if ultima_actividad and ultima_actividad.get("next_contact_date"):
+		return frappe._dict(
+			texto=texto_paso_de_actividad(ultima_actividad.get("activity_type")),
+			fecha=getdate(ultima_actividad.get("next_contact_date")),
+		)
+	return frappe._dict(texto="", fecha=None)
+
+
+def texto_paso_de_actividad(tipo: str | None) -> str:
+	return _("Contactar · {0}").format(tipo or _("seguimiento"))
 
 
 def motivo_valido(motivo: str | None, cfg: ConfigModelo) -> bool:
@@ -209,13 +209,13 @@ class DatosRelacionados:
 
 
 def _proximo_paso_con_fecha(doc, rel: DatosRelacionados) -> bool:
-	return bool(rel.ultima_actividad and rel.ultima_actividad.next_contact_date)
+	paso = proximo_paso_de(doc, rel.ultima_actividad)
+	return bool(paso.texto and paso.fecha)
 
 
 def _proximo_paso_vigente(doc, rel: DatosRelacionados) -> bool:
-	return _proximo_paso_con_fecha(doc, rel) and getdate(rel.ultima_actividad.next_contact_date) >= getdate(
-		nowdate()
-	)
+	paso = proximo_paso_de(doc, rel.ultima_actividad)
+	return bool(paso.texto and paso.fecha and paso.fecha >= getdate(nowdate()))
 
 
 # clave -> (texto que ve el usuario, función(doc, relacionados, cfg) -> bool)
@@ -223,14 +223,14 @@ REQUISITOS = {
 	"cliente": (_("cliente o lead"), lambda d, r, c: bool(d.get("party_name"))),
 	"tipo": (_("tipo de oportunidad"), lambda d, r, c: bool(d.get("tipo_de_oportunidad"))),
 	"origen": (_("origen"), lambda d, r, c: bool(d.get("source"))),
-	"monto": (_("presupuesto o monto estimado"), lambda d, r, c: monto_de(d, c) > 0),
+	"monto": (_("presupuesto declarado"), lambda d, r, c: monto_de(d, c) > 0),
 	"fecha_cierre": (_("fecha estimada de aprobación"), lambda d, r, c: bool(fecha_cierre_de(d, c))),
 	"proximo_paso": (
-		_("próximo paso con fecha (registra una Opportunity Activity con próximo contacto)"),
+		_("próximo paso con fecha"),
 		lambda d, r, c: _proximo_paso_con_fecha(d, r),
 	),
 	"proximo_paso_vigente": (
-		_("próximo paso con fecha de hoy en adelante"),
+		_("fecha del próximo paso (hoy o después)"),
 		lambda d, r, c: _proximo_paso_vigente(d, r),
 	),
 	"cotizacion_enviada": (
@@ -250,90 +250,3 @@ def faltantes(doc, etapa: Etapa, cfg: ConfigModelo, rel: DatosRelacionados | Non
 	"""Textos de los requisitos que la oportunidad no cumple para entrar a ``etapa``."""
 	rel = rel or DatosRelacionados(None if doc.get("__islocal") else doc.get("name"))
 	return [REQUISITOS[k][0] for k in etapa.requisitos if not REQUISITOS[k][1](doc, rel, cfg)]
-
-
-# ---------------------------------------------------------------------------
-# Hooks de documentos
-# ---------------------------------------------------------------------------
-
-
-def validar_oportunidad(doc, method=None):
-	"""Hook validate de Opportunity: requisitos por etapa, probabilidad y status coherentes."""
-	cfg = config_de(doc.get("sales_model"))
-	if not cfg or not doc.meta.has_field(CAMPO_ETAPA):
-		return
-
-	anterior = None if doc.is_new() else doc.get_doc_before_save()
-	etapa_cambio = anterior is None or anterior.get(CAMPO_ETAPA) != doc.get(CAMPO_ETAPA)
-	status_cambio = anterior is not None and anterior.get("status") != doc.get("status")
-
-	# Un cambio de status hecho desde ERPNext (p. ej. declarar perdida) arrastra la etapa.
-	if status_cambio and not etapa_cambio and cfg.por_status(doc.status):
-		doc.set(CAMPO_ETAPA, cfg.por_status(doc.status).titulo)
-		etapa_cambio = True
-
-	for motivo in motivos_de(doc):
-		if motivo in cfg.motivos_perdida_excluidos:
-			frappe.throw(
-				_("«{0}» no es un motivo de pérdida válido. Elige el motivo real.").format(motivo),
-				title=_("Motivo de pérdida"),
-			)
-
-	etapa = cfg.por_titulo(doc.get(CAMPO_ETAPA))
-	if not etapa:
-		if doc.get(CAMPO_ETAPA):
-			frappe.throw(_("La etapa {0} no existe para el modelo {1}.").format(doc.get(CAMPO_ETAPA), cfg.sales_model))
-		return
-
-	if etapa_cambio:
-		etapa_previa = cfg.por_titulo(anterior.get(CAMPO_ETAPA)) if anterior else None
-		if etapa_previa and etapa_previa.status == "Converted" and etapa != etapa_previa:
-			frappe.throw(_("Una oportunidad ganada no puede cambiar de etapa."), title=_("Etapa"))
-
-		rel = DatosRelacionados(None if doc.is_new() else doc.name)
-		falta = faltantes(doc, etapa, cfg, rel)
-		if falta:
-			frappe.throw(
-				_("Para pasar a {0} falta: {1}.").format(etapa.titulo, ", ".join(falta)),
-				title=_("Faltan datos"),
-			)
-		if etapa.actualiza_monto_con_cotizacion and rel.monto_cotizacion:
-			doc.opportunity_amount = rel.monto_cotizacion
-
-	if etapa.probabilidad is not None:
-		doc.probability = etapa.probabilidad
-	if etapa.status:
-		doc.status = etapa.status
-	elif doc.status in ("Lost", "Converted"):
-		# Reabrir una perdida: vuelve a estar abierta.
-		doc.status = "Open"
-
-
-def marcar_ganada(oportunidad: str):
-	"""Pone la etapa Ganada (y Converted) a una oportunidad cuya orden de venta ya existe."""
-	row = frappe.db.get_value("Opportunity", oportunidad, ["sales_model", CAMPO_ETAPA], as_dict=True)
-	cfg = config_de(row.sales_model) if row else None
-	ganada = cfg.por_status("Converted") if cfg else None
-	if not ganada:
-		return
-	# set_value: la orden de venta ya cumplió el requisito; replicamos lo que ERPNext
-	# hace con el status (db_set) para que etapa y status no queden desalineados.
-	frappe.db.set_value(
-		"Opportunity",
-		oportunidad,
-		{CAMPO_ETAPA: ganada.titulo, "probability": ganada.probabilidad, "status": "Converted"},
-	)
-
-
-def sincronizar_ganadas_desde_orden(doc, method=None):
-	"""Hook on_submit de Sales Order: sus oportunidades pasan a Ganada."""
-	cotizaciones = list({i.prevdoc_docname for i in doc.items if i.get("prevdoc_docname")})
-	if not cotizaciones:
-		return
-	oportunidades = frappe.get_all(
-		"Quotation",
-		filters={"name": ["in", cotizaciones], "opportunity": ["is", "set"]},
-		pluck="opportunity",
-	)
-	for oportunidad in set(oportunidades):
-		marcar_ganada(oportunidad)

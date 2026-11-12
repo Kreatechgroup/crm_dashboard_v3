@@ -10,10 +10,13 @@ from frappe.utils import add_days, date_diff, getdate, nowdate
 
 from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_ETAPA,
+	CAMPO_FECHA_PROXIMO_PASO,
+	CAMPO_PROXIMO_PASO,
 	ConfigModelo,
-	config_de,
 	motivo_valido,
+	texto_paso_de_actividad,
 )
+from crm_dashboard_v3.crm_tableros.common.tableros import ConfigTablero, tablero_de_oportunidad
 
 
 def motivos_de_perdida(cfg: ConfigModelo, doctype: str = "Lost Reason") -> list[str]:
@@ -34,16 +37,16 @@ def motivos_de_perdida_cotizacion(cfg: ConfigModelo) -> list[str]:
 	return [m for m in motivos_de_perdida(cfg) if m in de_cotizacion]
 
 
-def oportunidad_del_modelo(nombre: str, sales_model: str, permiso: str = "read"):
+def oportunidad_del_tablero(nombre: str, t: ConfigTablero, permiso: str = "read"):
 	doc = frappe.get_doc("Opportunity", nombre)
 	doc.check_permission(permiso)
-	if doc.get("sales_model") != sales_model:
-		frappe.throw(_("La oportunidad {0} no es del modelo {1}.").format(nombre, sales_model))
+	if tablero_de_oportunidad(doc) != t:
+		frappe.throw(_("La oportunidad {0} no pertenece a {1}.").format(nombre, t.titulo))
 	return doc
 
 
 def registrar_actividad(oportunidad, activity_type: str, comment: str, next_contact_date: str):
-	"""Crea una Opportunity Activity; su próximo contacto es el próximo paso de la tarjeta."""
+	"""Crea una Opportunity Activity; su próximo contacto pasa a ser el próximo paso de la oportunidad."""
 	falta = []
 	if not activity_type:
 		falta.append(_("tipo"))
@@ -66,6 +69,11 @@ def registrar_actividad(oportunidad, activity_type: str, comment: str, next_cont
 		}
 	)
 	actividad.insert()
+	if oportunidad.meta.has_field(CAMPO_FECHA_PROXIMO_PASO) and oportunidad.has_permission("write"):
+		oportunidad.reload()
+		oportunidad.set(CAMPO_PROXIMO_PASO, texto_paso_de_actividad(activity_type))
+		oportunidad.set(CAMPO_FECHA_PROXIMO_PASO, next_contact_date)
+		oportunidad.save()
 	return actividad.name
 
 
@@ -82,22 +90,24 @@ def perder_oportunidad(doc, cfg: ConfigModelo, motivo: str, detalle: str | None 
 	return doc
 
 
-def _cotizacion_con_oportunidad(nombre: str, sales_model: str):
+def _cotizacion_del_tablero(nombre: str, t: ConfigTablero):
 	cotizacion = frappe.get_doc("Quotation", nombre)
 	cotizacion.check_permission("read")
 	if cotizacion.docstatus != 1:
 		frappe.throw(_("La cotización {0} no está enviada.").format(nombre))
 	if not cotizacion.get("opportunity"):
 		frappe.throw(_("La cotización {0} no está ligada a una oportunidad.").format(nombre))
-	modelo = frappe.db.get_value("Opportunity", cotizacion.opportunity, "sales_model")
-	if modelo != sales_model:
-		frappe.throw(_("La cotización {0} no es del modelo {1}.").format(nombre, sales_model))
+	op = frappe.db.get_value(
+		"Opportunity", cotizacion.opportunity, ["sales_model", "establecimiento_lista"], as_dict=True
+	)
+	if not op or tablero_de_oportunidad(op) != t:
+		frappe.throw(_("La cotización {0} no pertenece a {1}.").format(nombre, t.titulo))
 	return cotizacion
 
 
-def renovar_cotizacion(nombre: str, sales_model: str, valid_till: str | None = None) -> str:
+def renovar_cotizacion(nombre: str, t: ConfigTablero, valid_till: str | None = None) -> str:
 	"""Copia enviada de la cotización con nueva vigencia (por defecto, la misma duración que tenía)."""
-	original = _cotizacion_con_oportunidad(nombre, sales_model)
+	original = _cotizacion_del_tablero(nombre, t)
 	frappe.has_permission("Quotation", "create", throw=True)
 	hoy = getdate(nowdate())
 	if not valid_till:
@@ -115,9 +125,9 @@ def renovar_cotizacion(nombre: str, sales_model: str, valid_till: str | None = N
 	return copia.name
 
 
-def perder_cotizacion(nombre: str, sales_model: str, motivo: str, detalle: str | None = None) -> str:
+def perder_cotizacion(nombre: str, t: ConfigTablero, motivo: str, detalle: str | None = None) -> str:
 	"""Declara perdida la cotización y, si no le quedan cotizaciones vivas, también la oportunidad."""
-	cfg = config_de(sales_model)
+	cfg = t.etapas
 	if not motivo_valido(motivo, cfg):
 		frappe.throw(_("Elige un motivo de pérdida específico."), title=_("Motivo de pérdida"))
 	if not (frappe.db.exists("Quotation Lost Reason", motivo) and frappe.db.exists("Lost Reason", motivo)):
@@ -125,7 +135,7 @@ def perder_cotizacion(nombre: str, sales_model: str, motivo: str, detalle: str |
 			_("El motivo «{0}» debe existir como motivo de cotización y de oportunidad.").format(motivo),
 			title=_("Motivo de pérdida"),
 		)
-	cotizacion = _cotizacion_con_oportunidad(nombre, sales_model)
+	cotizacion = _cotizacion_del_tablero(nombre, t)
 	cotizacion.check_permission("write")
 	cotizacion.declare_enquiry_lost([{"lost_reason": motivo}], [], detalle)
 
@@ -140,7 +150,7 @@ def perder_cotizacion(nombre: str, sales_model: str, motivo: str, detalle: str |
 		},
 		pluck="name",
 	)
-	oportunidad = oportunidad_del_modelo(cotizacion.opportunity, sales_model, "write")
+	oportunidad = oportunidad_del_tablero(cotizacion.opportunity, t, "write")
 	# ERPNext puede haber dejado la oportunidad en Lost (db_set, sin validate):
 	# en ese caso la etapa se alinea aunque queden otras cotizaciones.
 	ya_perdida = oportunidad.get(CAMPO_ETAPA) == cfg.por_status("Lost").titulo

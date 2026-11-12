@@ -1,5 +1,7 @@
 """Lectura de la Tabla de metas (reutilizable por Retail)."""
 
+from collections import defaultdict
+
 import frappe
 from frappe.utils import flt
 
@@ -34,3 +36,13 @@ def metas_vigentes(sales_persons: list[str], tipo_de_meta: str, desde, hasta, co
 def meta_total(sales_persons: list[str], tipo_de_meta: str, desde, hasta, company: str | None = None) -> dict:
 	metas = metas_vigentes(sales_persons, tipo_de_meta, desde, hasta, company)
 	return {"monto": sum(flt(m.valor_deseado) for m in metas), "metas": [m.name for m in metas]}
+
+
+def meta_por_modelo(
+	sales_persons: dict[str, str], tipo_de_meta: str, desde, hasta, company: str | None = None
+) -> dict[str, float]:
+	"""Modelo de venta -> Σ metas de los Sales Person de ese modelo."""
+	totales = defaultdict(float)
+	for m in metas_vigentes(list(sales_persons), tipo_de_meta, desde, hasta, company):
+		totales[sales_persons[m.asesor]] += flt(m.valor_deseado)
+	return dict(totales)

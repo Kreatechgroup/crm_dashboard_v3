@@ -4,9 +4,11 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_ETAPA,
+	CAMPO_FECHA_PROXIMO_PASO,
 	CAMPO_FECHA_RETOMAR,
-	titulos_de_todas_las_etapas,
+	CAMPO_PROXIMO_PASO,
 )
+from crm_dashboard_v3.crm_tableros.common.tableros import titulos_de_todas_las_etapas
 
 
 def definicion_campos() -> dict:
@@ -28,6 +30,19 @@ def definicion_campos() -> dict:
 				"fieldtype": "Date",
 				"insert_after": CAMPO_ETAPA,
 				"depends_on": f"eval:doc.{CAMPO_ETAPA}=='En pausa'",
+			},
+			{
+				"fieldname": CAMPO_PROXIMO_PASO,
+				"label": "Próximo paso",
+				"fieldtype": "Data",
+				"insert_after": CAMPO_FECHA_RETOMAR,
+				"description": "Si está vacío, el tablero usa la última Opportunity Activity.",
+			},
+			{
+				"fieldname": CAMPO_FECHA_PROXIMO_PASO,
+				"label": "Fecha del próximo paso",
+				"fieldtype": "Date",
+				"insert_after": CAMPO_PROXIMO_PASO,
 			},
 		],
 	}

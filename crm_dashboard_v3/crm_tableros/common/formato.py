@@ -31,6 +31,10 @@ def etiqueta_mes(fecha) -> str:
 	return f"{MESES[fecha.month - 1].capitalize()} {fecha.year}"
 
 
+def etiqueta_mes_corta(fecha) -> str:
+	return MESES[getdate(fecha).month - 1][:3].capitalize()
+
+
 def semaforo(clave: str) -> dict:
 	return {"clave": clave, "texto": SEMAFORO[clave]}
 
