@@ -179,6 +179,14 @@ class TestMontosYFormato(FrappeTestCase):
 		self.assertEqual(etapas.monto_de(oportunidad(presupuesto_declarado_por_el_cliente=800), CFG, 4500), 800)
 		self.assertEqual(etapas.monto_de(oportunidad(opportunity_amount=1200), CFG, 4500), 1200)
 
+	def test_monto_en_otra_moneda_usa_la_tasa_de_la_oportunidad(self):
+		usd = oportunidad(currency="USD", conversion_rate=7.63, presupuesto_declarado_por_el_cliente=1000)
+		self.assertAlmostEqual(etapas.monto_de(usd, CFG, 0), 7630)
+		# La cotización ya viene en moneda de la empresa (base_grand_total): no se vuelve a convertir.
+		self.assertEqual(etapas.monto_de(oportunidad(currency="USD", conversion_rate=7.63), CFG, 4500), 4500)
+		# Sin tasa (registros viejos) se toma 1.
+		self.assertEqual(etapas.tasa_de(oportunidad(conversion_rate=0)), 1)
+
 	def test_fecha_cierre(self):
 		self.assertEqual(
 			etapas.fecha_cierre_de(oportunidad(fecha_estimada_aprobacion="2026-11-20"), CFG), date(2026, 11, 20)

@@ -30,6 +30,8 @@ CAMPOS_OPORTUNIDAD = [
 	"tipo_de_oportunidad",
 	"source",
 	"opportunity_amount",
+	"currency",
+	"conversion_rate",
 	"presupuesto_declarado_por_el_cliente",
 	"fecha_estimada_aprobacion",
 	"expected_closing",

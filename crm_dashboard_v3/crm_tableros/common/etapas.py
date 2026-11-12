@@ -101,11 +101,22 @@ def es_incoherente(row, cfg: ConfigModelo) -> bool:
 	return bool(etapa.status) and row.get("status") != etapa.status
 
 
+def tasa_de(row) -> float:
+	"""Tasa de la oportunidad a la moneda de la empresa (``conversion_rate``); 1 si no tiene."""
+	return flt(row.get("conversion_rate")) or 1
+
+
 def monto_de(row, cfg: ConfigModelo, monto_cotizacion: float = 0) -> float:
-	"""Primer monto > 0 de los campos configurados; si no hay, la cotización ligada más alta."""
+	"""Monto en la moneda de la empresa.
+
+	Primer monto > 0 de los campos configurados, convertido con la tasa de la propia
+	oportunidad (igual que ERPNext convierte cotizaciones y facturas a sus campos base_*).
+	Si no hay, la cotización ligada más alta, que ya viene en moneda de la empresa
+	(``base_grand_total``).
+	"""
 	for campo in cfg.campos_monto:
 		if flt(row.get(campo)) > 0:
-			return flt(row.get(campo))
+			return flt(row.get(campo)) * tasa_de(row)
 	return flt(monto_cotizacion)
 
 

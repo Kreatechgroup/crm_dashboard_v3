@@ -19,6 +19,7 @@ from crm_dashboard_v3.crm_tableros.common.etapas import (
 	etapa_efectiva,
 	faltantes,
 	motivo_valido,
+	tasa_de,
 	texto_paso_de_actividad,
 )
 from crm_dashboard_v3.crm_tableros.common import flujo
@@ -103,9 +104,11 @@ def cambiar_etapa(doc, destino: Etapa, cfg: ConfigModelo):
 			title=_("Faltan datos"),
 		)
 	if destino.actualiza_monto_con_cotizacion and rel.monto_cotizacion:
-		# El monto de la cotización reemplaza al estimado.
-		doc.opportunity_amount = rel.monto_cotizacion
-		doc.set(CAMPO_PRESUPUESTO, rel.monto_cotizacion)
+		# El monto de la cotización (en moneda de la empresa) reemplaza al estimado,
+		# guardado en la moneda de la oportunidad.
+		monto = rel.monto_cotizacion / tasa_de(doc)
+		doc.opportunity_amount = monto
+		doc.set(CAMPO_PRESUPUESTO, monto)
 	doc.set(CAMPO_ETAPA, destino.valor)
 	doc.save()
 	return doc

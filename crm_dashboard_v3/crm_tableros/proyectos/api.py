@@ -123,6 +123,9 @@ def get_oportunidad(nombre: str, pagina_historial: int = 0):
 		"tipo_de_oportunidad": doc.get("tipo_de_oportunidad"),
 		"source": doc.get("source"),
 		"presupuesto_declarado_por_el_cliente": flt(doc.get("presupuesto_declarado_por_el_cliente")),
+		# El presupuesto se edita en la moneda de la oportunidad; «monto» ya está convertido.
+		"moneda": doc.get("currency"),
+		"tasa": etapas.tasa_de(doc),
 		"opportunity_amount": flt(doc.opportunity_amount),
 		"monto": etapas.monto_de(doc, cfg, rel.monto_cotizacion),
 		"fecha_estimada_aprobacion": doc.get("fecha_estimada_aprobacion"),

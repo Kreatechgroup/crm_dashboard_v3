@@ -794,9 +794,16 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		return `
 			<div class="crm-form">
 				${op.etapa.clave === "pausa" ? `<div class="crm-aviso-gris">${this.e(__("En pausa hasta el {0}. No cuenta en el pronóstico.", [this.fecha(op.fecha_retomar)]))}</div>` : ""}
-				<label>${this.e(__("Presupuesto declarado por el cliente ({0})", [this.datos.moneda]))}
+				<label>${this.e(__("Presupuesto declarado por el cliente ({0})", [op.moneda || this.datos.moneda]))}
 					<input type="number" min="0" step="0.01" class="crm-input" data-campo="presupuesto_declarado_por_el_cliente"
 						value="${this.e(op.presupuesto_declarado_por_el_cliente || "")}"></label>
+				${
+					op.moneda && op.moneda !== this.datos.moneda
+						? `<div class="crm-pista">${this.e(
+								__("El tablero lo cuenta como {0} (tasa {1} de la oportunidad).", [this.dinero(op.monto), op.tasa])
+						  )}</div>`
+						: ""
+				}
 				<label>${__("Fecha estimada de aprobación")}
 					<input type="date" class="crm-input" data-campo="fecha_estimada_aprobacion" value="${this.e(op.fecha_estimada_aprobacion || "")}"></label>
 				<div class="crm-form-2">
