@@ -1,11 +1,19 @@
-"""Configuración del tablero CRM Proyectos (etapas, probabilidades, umbrales)."""
+"""Configuración del tablero CRM Proyectos: asesores de Plus con sus dos Sales Person.
+
+Cada asesor de Plus tiene un Sales Person de Proyectos ("Asesor de Proyectos
+Retail X - UM") y uno de Retail ("Asesor Retail X - UM"). El tablero junta las
+oportunidades, metas y ventas de los dos; las oportunidades Retail de Plus usan
+las mismas etapas que las de Proyectos.
+"""
 
 from crm_dashboard_v3.crm_tableros.common.etapas import ConfigModelo, Etapa
+from crm_dashboard_v3.crm_tableros.common.tableros import ConfigTablero
 
-SALES_MODEL = "Proyectos"
+PROYECTOS = "Proyectos"
+RETAIL = "Retail"
 
-CONFIG = ConfigModelo(
-	sales_model=SALES_MODEL,
+ETAPAS = ConfigModelo(
+	nombre="CRM Proyectos",
 	etapas=(
 		Etapa(
 			"cal",
@@ -88,11 +96,20 @@ CONFIG = ConfigModelo(
 		"Descartada": "perdida",
 		"Llamar después": "pausa",
 	},
-	tipo_meta="Monto de VENTA (Sales Invoice)",
-	texto_sales_person="Proyectos",
 	umbral_escalar=50000,
 	dias_verde_max=7,
 	dias_amarillo_max=14,
 	motivos_perdida_excluidos=("Especificar motivo",),
-	roles_jefe=("Asociado", "Gerente Comercial Proyectos", "Jefe de Plus", "System Manager"),
+)
+
+TABLERO = ConfigTablero(
+	clave="proyectos",
+	titulo="CRM Proyectos",
+	establecimientos=("Plus Fontabella Importado",),
+	sales_models=(PROYECTOS, RETAIL),
+	roles_jefe=("Jefe de Plus",),
+	etapas=ETAPAS,
+	tipo_meta="Monto de VENTA (Sales Invoice)",
+	texto_sales_person_por_modelo=((PROYECTOS, "Proyectos"),),
+	modelo_por_defecto=RETAIL,
 )
