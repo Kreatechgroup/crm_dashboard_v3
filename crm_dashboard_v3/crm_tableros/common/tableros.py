@@ -32,6 +32,10 @@ class ConfigTablero:
 	texto_sales_person_por_modelo: tuple[tuple[str, str], ...]
 	modelo_por_defecto: str
 	meses_historico: int = 6
+	# Títulos de la página ({0} = nombre de la persona). Se traducen con _().
+	titulo_asesor: str = "Mi tablero · {0}"
+	titulo_jefe_asesor: str = "{0}"
+	titulo_tienda: str = "Toda la tienda"
 
 	def incluye(self, sales_model: str | None, establecimiento: str | None) -> bool:
 		return sales_model in self.sales_models and establecimiento in self.establecimientos

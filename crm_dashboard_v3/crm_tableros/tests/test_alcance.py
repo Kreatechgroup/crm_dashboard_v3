@@ -6,7 +6,8 @@ from unittest.mock import patch
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from crm_dashboard_v3.crm_tableros.common import contexto, metas, ventas
+from crm_dashboard_v3.crm_tableros.common import alcance, contexto, metas, ventas
+from crm_dashboard_v3.crm_tableros.common import api as api_comun
 from crm_dashboard_v3.crm_tableros.common.contexto import Asesor, Contexto
 from crm_dashboard_v3.crm_tableros.proyectos import api, embudo
 from crm_dashboard_v3.crm_tableros.proyectos.config import PROYECTOS, RETAIL, TABLERO
@@ -35,10 +36,12 @@ def _ctx(es_jefe=False, **campos):
 class TestAlcance(FrappeTestCase):
 	def test_asesor_solo_se_ve_a_si_mismo(self):
 		with patch.object(contexto, "obtener", return_value=_ctx()):
-			_t, _c, base, seleccion = api._alcance(None, "EMP-DE-OTRO-ASESOR", None)
-		self.assertIsNone(base["asesor"])
-		self.assertEqual([a.usuario for a in seleccion], ["asesora@prueba.test"])
-		self.assertEqual(set(seleccion[0].sales_persons), {SP_PROYECTOS, SP_RETAIL})
+			a = alcance.obtener(TABLERO, None, "EMP-DE-OTRO-ASESOR", None)
+		self.assertIsNone(a.base["asesor"])
+		self.assertFalse(a.vista_tienda)
+		self.assertEqual(a.base["titulo"], "Mis proyectos · Asesora de prueba")
+		self.assertEqual([x.usuario for x in a.seleccion], ["asesora@prueba.test"])
+		self.assertEqual(set(a.seleccion[0].sales_persons), {SP_PROYECTOS, SP_RETAIL})
 
 	def test_jefe_no_puede_elegir_un_asesor_de_otra_tienda(self):
 		asesores = [Asesor("EMP-1", "Asesor 1", "a1@prueba.test", {})]
@@ -47,15 +50,33 @@ class TestAlcance(FrappeTestCase):
 			patch.object(contexto, "asesores_de_tienda", return_value=asesores),
 		):
 			with self.assertRaises(frappe.ValidationError):
-				api._alcance(None, "EMP-9", None)
-			_t, _c, base, seleccion = api._alcance(None, None, None)
-		self.assertEqual(base["titulo"], "Proyectos · toda la tienda")
-		self.assertEqual(seleccion, asesores)
+				alcance.obtener(TABLERO, None, "EMP-9", None)
+			tienda = alcance.obtener(TABLERO)
+			uno = alcance.obtener(TABLERO, None, "EMP-1", None)
+		self.assertEqual(tienda.base["titulo"], "Proyectos · toda la tienda")
+		self.assertTrue(tienda.vista_tienda)
+		self.assertEqual(tienda.seleccion, asesores)
+		self.assertEqual(uno.base["titulo"], "Proyectos de Asesor 1")
+		self.assertFalse(uno.vista_tienda)
 
 	def test_usuario_sin_sales_person_de_plus_ve_un_mensaje(self):
 		with patch.object(contexto, "obtener", return_value=_ctx(mensaje="Sin Sales Person")):
 			resultado = api.get_tablero()
 		self.assertEqual(resultado["mensaje"], "Sin Sales Person")
+
+	def test_get_contexto_devuelve_el_contexto_del_tablero(self):
+		with patch.object(contexto, "obtener", return_value=_ctx()):
+			base = api_comun.get_contexto("proyectos", None, "EMP-DE-OTRO-ASESOR")
+		self.assertEqual(base["tablero"], "proyectos")
+		self.assertFalse(base["es_jefe"])
+		self.assertEqual(base["mes"], "2026-10")
+		self.assertEqual(base["company"], "Compañía de prueba")
+		self.assertEqual({s["name"] for s in base["sales_persons"]}, {SP_PROYECTOS, SP_RETAIL})
+		self.assertEqual(base["modelos"], list(TABLERO.sales_models))
+
+	def test_get_contexto_de_tablero_inexistente(self):
+		with self.assertRaises(frappe.ValidationError):
+			api_comun.get_contexto("no-existe")
 
 	def test_rol_asociado_no_es_jefe(self):
 		with patch("frappe.get_roles", return_value=["Asociado", "Employee"]):

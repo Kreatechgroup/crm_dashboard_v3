@@ -41,7 +41,6 @@ def construir(t, ctx, asesores: list, con_resumen: bool = False) -> dict:
 
 	resultado = {
 		"kpis": _indicadores(grupo, ventas_por_asesor.values(), ctx),
-		"modelos": list(t.sales_models),
 		"columnas": [
 			{
 				"clave": e.clave,

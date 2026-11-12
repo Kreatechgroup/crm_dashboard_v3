@@ -113,4 +113,7 @@ TABLERO = ConfigTablero(
 	tipo_meta="Monto de VENTA (Sales Invoice)",
 	texto_sales_person_por_modelo=((PROYECTOS, "Proyectos"),),
 	modelo_por_defecto=RETAIL,
+	titulo_asesor="Mis proyectos · {0}",
+	titulo_jefe_asesor="Proyectos de {0}",
+	titulo_tienda="Proyectos · toda la tienda",
 )

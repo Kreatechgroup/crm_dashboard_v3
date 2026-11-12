@@ -11,7 +11,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_months, flt, getdate
 
-from crm_dashboard_v3.crm_tableros.common import acciones, contexto, entregables, etapas
+from crm_dashboard_v3.crm_tableros.common import acciones, alcance, entregables, etapas
 from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_ETAPA,
 	CAMPO_FECHA_PROXIMO_PASO,
@@ -19,7 +19,7 @@ from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_ORDEN_DE_VENTA,
 	CAMPO_PROXIMO_PASO,
 )
-from crm_dashboard_v3.crm_tableros.common.formato import etiqueta_mes, nombres_de_usuarios
+from crm_dashboard_v3.crm_tableros.common.formato import nombres_de_usuarios
 from crm_dashboard_v3.crm_tableros.proyectos import consolidado, embudo, historico
 from crm_dashboard_v3.crm_tableros.proyectos.config import TABLERO
 
@@ -37,78 +37,32 @@ CAMPOS_EDITABLES = (
 
 
 # ---------------------------------------------------------------------------
-# Alcance: quién mira y a quién
+# Tablero (el alcance —quién mira y a quién— lo resuelve common/alcance.py)
 # ---------------------------------------------------------------------------
-
-
-def _alcance(mes, asesor, establecimiento):
-	"""Contexto, datos base de la respuesta y asesores a mostrar (o un mensaje)."""
-	t = TABLERO
-	ctx = contexto.obtener(t, mes, establecimiento)
-	base = {
-		"tablero": t.titulo,
-		"meses": contexto.meses_disponibles(),
-		"mes": ctx.desde.strftime("%Y-%m"),
-		"etiqueta_mes": etiqueta_mes(ctx.desde),
-		"hoy": str(ctx.hoy),
-		"dia_de_corte": str(ctx.dia_de_corte),
-		"es_jefe": ctx.es_jefe,
-		"establecimientos": ctx.establecimientos,
-		"establecimiento": ctx.establecimiento,
-		"moneda": ctx.moneda,
-		"asesores": [],
-		"asesor": None,
-		"nombre_usuario": ctx.nombre,
-	}
-	if ctx.mensaje:
-		return t, ctx, {**base, "titulo": t.titulo, "mensaje": ctx.mensaje}, []
-
-	if ctx.es_jefe:
-		asesores = contexto.asesores_de_tienda(t, ctx.establecimiento)
-		base["asesores"] = [{"empleado": a.empleado, "nombre": a.nombre} for a in asesores]
-		seleccion = asesores
-		if asesor:
-			seleccion = [a for a in asesores if a.empleado == asesor]
-			if not seleccion:
-				frappe.throw(_("El asesor elegido no pertenece a este establecimiento."))
-			base["asesor"] = asesor
-		titulo = _("Proyectos de {0}").format(seleccion[0].nombre) if asesor else _("Proyectos · toda la tienda")
-		if not asesores:
-			return t, ctx, {**base, "titulo": titulo, "mensaje": _("No hay asesores activos en {0}.").format(ctx.establecimiento)}, []
-	else:
-		# Un asesor nunca ve a otro: el parámetro ``asesor`` se ignora.
-		seleccion = [ctx.como_asesor()]
-		titulo = _("Mis proyectos · {0}").format(ctx.nombre)
-
-	base["titulo"] = titulo
-	base["subtitulo"] = " · ".join(filter(None, [ctx.establecimiento, ctx.company, etiqueta_mes(ctx.desde)]))
-	return t, ctx, base, seleccion
 
 
 @frappe.whitelist()
 def get_tablero(mes: str | None = None, asesor: str | None = None, establecimiento: str | None = None):
-	t, ctx, base, seleccion = _alcance(mes, asesor, establecimiento)
-	if base.get("mensaje"):
-		return base
-	vista_tienda = ctx.es_jefe and not base["asesor"]
-	return {**base, **embudo.construir(t, ctx, seleccion, con_resumen=vista_tienda)}
+	a = alcance.obtener(TABLERO, mes, asesor, establecimiento)
+	if a.mensaje:
+		return a.base
+	return {**a.base, **embudo.construir(a.tablero, a.ctx, a.seleccion, con_resumen=a.vista_tienda)}
 
 
 @frappe.whitelist()
 def get_consolidado(mes: str | None = None, asesor: str | None = None, establecimiento: str | None = None):
-	t, ctx, base, seleccion = _alcance(mes, asesor, establecimiento)
-	if base.get("mensaje"):
-		return base
-	vista_tienda = ctx.es_jefe and not base["asesor"]
-	return {**base, **consolidado.construir(t, ctx, seleccion, vista_tienda)}
+	a = alcance.obtener(TABLERO, mes, asesor, establecimiento)
+	if a.mensaje:
+		return a.base
+	return {**a.base, **consolidado.construir(a.tablero, a.ctx, a.seleccion, a.vista_tienda)}
 
 
 @frappe.whitelist()
 def get_historico(mes: str | None = None, asesor: str | None = None, establecimiento: str | None = None):
-	t, ctx, base, seleccion = _alcance(mes, asesor, establecimiento)
-	if base.get("mensaje"):
-		return base
-	return {**base, **historico.construir(t, ctx, seleccion)}
+	a = alcance.obtener(TABLERO, mes, asesor, establecimiento)
+	if a.mensaje:
+		return a.base
+	return {**a.base, **historico.construir(a.tablero, a.ctx, a.seleccion)}
 
 
 # ---------------------------------------------------------------------------
