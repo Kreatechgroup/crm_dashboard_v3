@@ -4,7 +4,7 @@
  "docstatus": 0,
  "doctype": "Page",
  "idx": 0,
- "modified": "2026-11-11 09:00:00.000000",
+ "modified": "2026-11-12 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "CRM Dashboard V3",
  "name": "crm-proyectos",
@@ -13,12 +13,6 @@
  "roles": [
   {
    "role": "Asesor de proyectos"
-  },
-  {
-   "role": "Asociado"
-  },
-  {
-   "role": "Gerente Comercial Proyectos"
   },
   {
    "role": "Jefe de Plus"
