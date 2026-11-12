@@ -11,7 +11,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_months, flt, getdate
 
-from crm_dashboard_v3.crm_tableros.common import acciones, alcance, entregables, etapas
+from crm_dashboard_v3.crm_tableros.common import acciones, alcance, entregables, etapas, flujo
 from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_FECHA_PROXIMO_PASO,
 	CAMPO_FECHA_RETOMAR,
@@ -147,6 +147,10 @@ def get_oportunidad(nombre: str, pagina_historial: int = 0):
 		"siguiente": _etapa_con_faltantes(doc, siguiente, cfg, rel),
 		"anterior": _etapa_con_faltantes(doc, anterior, cfg, rel),
 		"puede_pausar": not cerrada and etapa.clave != "pausa",
+		# Mensaje si el workflow de embudo_state_v2 no permite pausar o perder desde la etapa actual.
+		"bloqueos": {
+			clave: flujo.bloqueo(doc, cfg.etapa(clave).valor) if not cerrada else None for clave in ("pausa", "perdida")
+		},
 		"historial": [
 			{
 				"fecha": h.created_on,
@@ -262,7 +266,7 @@ def _etapa_con_faltantes(doc, etapa, cfg, rel):
 		"clave": etapa.clave,
 		"titulo": etapa.titulo,
 		"probabilidad": etapa.probabilidad,
-		"faltantes": etapas.faltantes(doc, etapa, cfg, rel),
+		"faltantes": etapas.faltantes(doc, etapa, cfg, rel) + list(filter(None, [flujo.bloqueo(doc, etapa.valor)])),
 	}
 
 

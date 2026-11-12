@@ -21,6 +21,7 @@ from crm_dashboard_v3.crm_tableros.common.etapas import (
 	motivo_valido,
 	texto_paso_de_actividad,
 )
+from crm_dashboard_v3.crm_tableros.common import flujo
 from crm_dashboard_v3.crm_tableros.common.tableros import ConfigTablero, tablero_de_oportunidad
 
 
@@ -92,6 +93,10 @@ def cambiar_etapa(doc, destino: Etapa, cfg: ConfigModelo):
 		frappe.throw(_("Una oportunidad ganada no puede cambiar de etapa."), title=_("Etapa"))
 	rel = DatosRelacionados(doc.name)
 	falta = faltantes(doc, destino, cfg, rel)
+	# El workflow que controla embudo_state_v2 también debe permitir el cambio.
+	bloqueo = flujo.bloqueo(doc, destino.valor)
+	if bloqueo:
+		frappe.throw(bloqueo, title=_("Workflow"))
 	if falta:
 		frappe.throw(
 			_("Para pasar a {0} falta: {1}.").format(destino.titulo, ", ".join(falta)),
@@ -163,7 +168,6 @@ def perder_cotizacion(nombre: str, t: ConfigTablero, motivo: str, detalle: str |
 		)
 	cotizacion = _cotizacion_del_tablero(nombre, t)
 	cotizacion.check_permission("write")
-	cotizacion.declare_enquiry_lost([{"lost_reason": motivo}], [], detalle)
 
 	vivas = frappe.get_list(
 		"Quotation",
@@ -176,10 +180,20 @@ def perder_cotizacion(nombre: str, t: ConfigTablero, motivo: str, detalle: str |
 		},
 		pluck="name",
 	)
+	perdida = cfg.por_status("Lost")
 	oportunidad = oportunidad_del_tablero(cotizacion.opportunity, t, "write")
+	# Antes de tocar la cotización: si la oportunidad también se perderá, el workflow
+	# debe permitirlo (así no queda la cotización perdida y la oportunidad sin mover).
+	if not vivas and oportunidad.get(CAMPO_ETAPA) != perdida.valor:
+		bloqueo = flujo.bloqueo(oportunidad, perdida.valor)
+		if bloqueo:
+			frappe.throw(bloqueo, title=_("Workflow"))
+
+	cotizacion.declare_enquiry_lost([{"lost_reason": motivo}], [], detalle)
+	oportunidad.reload()
 	# ERPNext puede haber dejado la oportunidad en Lost (db_set, sin validate):
 	# en ese caso la etapa se alinea aunque queden otras cotizaciones.
-	ya_perdida = oportunidad.get(CAMPO_ETAPA) == cfg.por_status("Lost").valor
+	ya_perdida = oportunidad.get(CAMPO_ETAPA) == perdida.valor
 	if not ya_perdida and (not vivas or oportunidad.status == "Lost"):
 		perder_oportunidad(oportunidad, cfg, motivo, detalle)
 	return cotizacion.name

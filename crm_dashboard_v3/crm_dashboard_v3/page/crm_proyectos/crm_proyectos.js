@@ -885,28 +885,34 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		return lista;
 	}
 
+	// Lo que falta para confirmar una de "Otras acciones" (datos del formulario y bloqueos del workflow).
+	faltantes_secundaria(sel) {
+		const v = this.estado.sec_vals;
+		const bloqueos = this.op.bloqueos;
+		if (sel.k === "regresar") return sel.d.faltantes;
+		if (sel.k === "pausa") return (v.retomar ? [] : [__("fecha para retomar")]).concat(bloqueos.pausa ? [bloqueos.pausa] : []);
+		return (v.motivo ? [] : [__("motivo de pérdida")]).concat(bloqueos.perdida ? [bloqueos.perdida] : []);
+	}
+
 	html_otras_acciones() {
 		const op = this.op;
 		const opciones = this.opciones_secundarias();
 		const sel = opciones.find((o) => o.k === this.estado.sec);
 		const v = this.estado.sec_vals;
 		let campos = "";
-		let falta = [];
+		const falta = sel ? this.faltantes_secundaria(sel) : [];
 		if (sel) {
 			if (sel.k === "regresar") {
-				falta = sel.d.faltantes;
 				if (sel.d.clave === "cal") {
 					campos += `<label>${__("Origen")} *<select class="crm-select" data-campo="source"><option value="">${__("Elige el origen")}</option>${op.opciones.origenes
 						.map((o) => `<option ${o === op.source ? "selected" : ""}>${this.e(o)}</option>`)
 						.join("")}</select></label>`;
 				}
 			} else if (sel.k === "pausa") {
-				if (!v.retomar) falta = [__("fecha para retomar")];
 				campos += `<label>${__("Fecha para retomar")} *<input type="date" class="crm-input" data-modelo="sec_vals.retomar" min="${this.e(
 					this.datos.hoy
 				)}" value="${this.e(v.retomar)}"></label>`;
 			} else {
-				if (!v.motivo) falta = [__("motivo de pérdida")];
 				campos += `<label>${__("Motivo de pérdida")} *<select class="crm-select" data-modelo="sec_vals.motivo"><option value="">${__("Elige un motivo")}</option>${op.opciones.motivos
 					.map((m) => `<option ${m === v.motivo ? "selected" : ""}>${this.e(m)}</option>`)
 					.join("")}</select></label>
@@ -1669,9 +1675,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const sel = this.opciones_secundarias().find((o) => o.k === this.estado.sec);
 		if (!sel) return;
 		const v = this.estado.sec_vals;
-		const falta =
-			sel.k === "regresar" ? sel.d.faltantes : sel.k === "pausa" ? (v.retomar ? [] : ["x"]) : v.motivo ? [] : ["x"];
-		if (falta.length) {
+		if (this.faltantes_secundaria(sel).length) {
 			this.estado.intento = "sec";
 			this.pintar_panel();
 			return;

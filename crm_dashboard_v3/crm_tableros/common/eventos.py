@@ -7,13 +7,17 @@ el tablero (``proyectos/api.py · mover_etapa``). Aquí solo se asegura que:
 
 - la probabilidad sea la de la etapa;
 - Ganada ↔ Converted y Perdida ↔ Lost;
-- un cambio de status hecho desde ERPNext (declarar perdida) arrastre la etapa;
+- un cambio de status hecho desde ERPNext (declarar perdida) arrastre la etapa, solo si
+  el workflow «Embudo de ventas 2019» permite esa transición: el hook nunca debe hacer
+  fallar un guardado (si no se permite, la etapa queda igual y el tablero la marca
+  como «Etapa ≠ status»);
 - no se use un motivo de pérdida genérico.
 """
 
 import frappe
 from frappe import _
 
+from crm_dashboard_v3.crm_tableros.common import flujo
 from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA, motivos_de
 from crm_dashboard_v3.crm_tableros.common.tableros import tablero_de_oportunidad
 
@@ -36,9 +40,11 @@ def validar_oportunidad(doc, method=None):
 	etapa_cambio = anterior is None or anterior.get(CAMPO_ETAPA) != doc.get(CAMPO_ETAPA)
 	status_cambio = anterior is not None and anterior.get("status") != doc.get("status")
 
-	# Un cambio de status hecho desde ERPNext (p. ej. declarar perdida) arrastra la etapa.
-	if status_cambio and not etapa_cambio and cfg.por_status(doc.status):
-		doc.set(CAMPO_ETAPA, cfg.por_status(doc.status).valor)
+	# Un cambio de status hecho desde ERPNext (p. ej. declarar perdida) arrastra la etapa,
+	# si el workflow lo permite; si no, no se toca para no hacer fallar el guardado.
+	destino = cfg.por_status(doc.status) if status_cambio and not etapa_cambio else None
+	if destino and not flujo.bloqueo(doc, destino.valor):
+		doc.set(CAMPO_ETAPA, destino.valor)
 		etapa_cambio = True
 
 	etapa = cfg.por_valor(doc.get(CAMPO_ETAPA))
