@@ -10,7 +10,7 @@ Habrá dos tableros:
 
 **Vistas por persona** (aclarado por el negocio el 2026-11-12):
 - Cada asesor ve **solo su información**.
-- La vista de **tienda** ("Toda la tienda" + elegir a cada asesor + resumen por asesor) es solo para los jefes: **jefe de Plus** (Aura Rodríguez, rol `Jefe de Plus`), **jefe de Abito** (rol `Jefe de Abito`) y **Antonio Camargo** (tiene los dos roles). El rol genérico "Asociado" no da vista de jefe.
+- La vista de **tienda** ("Toda la tienda" + elegir a cada asesor + resumen por asesor) es solo para los jefes: **jefe de Plus** (Aura Rodríguez, rol `Jefe de Plus`), **jefe de Abito** (rol `Jefe de Abito`) y **Antonio Camargo** (tiene los dos roles). **System Manager** también ve la vista de tienda. El rol genérico "Asociado" no da vista de jefe.
 
 La especificación está en `docs/` (PDF de Proyectos y de Retail) y el prototipo navegable en `docs/mockup.html`. Para CRM Proyectos **manda el mockup** donde difiere del PDF (alcance Plus con dos Sales Person, monto y fecha en `presupuesto_declarado_por_el_cliente` / `fecha_estimada_aprobacion`, facturado por Comisiones Asesor de la orden de venta). Si encuentras otra diferencia, avísame.
 

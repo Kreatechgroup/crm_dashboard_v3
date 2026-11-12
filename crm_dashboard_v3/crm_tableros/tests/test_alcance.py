@@ -63,6 +63,42 @@ class TestAlcance(FrappeTestCase):
 		with patch("frappe.get_roles", return_value=["Jefe de Plus"]):
 			self.assertTrue(contexto.es_jefe(TABLERO, "aura@prueba.test"))
 
+	def test_system_manager_ve_la_tienda(self):
+		with patch("frappe.get_roles", return_value=["System Manager"]):
+			self.assertTrue(contexto.es_jefe(TABLERO, "admin@prueba.test"))
+
+	def _obtener(self, sps, empleados=None):
+		empleados = [frappe._dict(name="EMP-A", employee_name="Asesora", status="Active")] if empleados is None else empleados
+		with (
+			patch.object(contexto, "_empleados_del_usuario", return_value=empleados),
+			patch.object(contexto, "_sales_persons_del_usuario", return_value=sps),
+			patch.object(contexto, "es_jefe", return_value=False),
+			patch("frappe.get_cached_value", return_value="GTQ"),
+		):
+			return contexto.obtener(TABLERO, usuario="asesora@prueba.test")
+
+	def test_asesor_entra_con_sus_dos_sales_person_de_plus(self):
+		plus = TABLERO.establecimientos[0]
+		ctx = self._obtener(
+			[
+				frappe._dict(name=SP_PROYECTOS, company="Umob", establecimiento=plus),
+				frappe._dict(name=SP_RETAIL, company="Umob", establecimiento=plus),
+				frappe._dict(name="Asesor de Proyectos Retail Prueba", company="Otra", establecimiento="Otra tienda"),
+			]
+		)
+		self.assertIsNone(ctx.mensaje)
+		self.assertEqual(ctx.company, "Umob")
+		self.assertEqual(ctx.sales_persons, {SP_PROYECTOS: PROYECTOS, SP_RETAIL: RETAIL})
+
+	def test_mensaje_explica_que_sales_person_encontro(self):
+		ctx = self._obtener([frappe._dict(name="Asesor Retail Prueba", company="Umob", establecimiento="Otra tienda")])
+		self.assertIn("Asesor Retail Prueba", ctx.mensaje)
+		self.assertIn("Otra tienda", ctx.mensaje)
+
+	def test_mensaje_sin_sales_person_menciona_al_empleado(self):
+		ctx = self._obtener([])
+		self.assertIn("EMP-A", ctx.mensaje)
+
 	def test_jefes_no_aparecen_como_asesores(self):
 		def get_all(doctype, **kwargs):
 			return {

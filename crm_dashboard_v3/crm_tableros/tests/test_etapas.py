@@ -1,6 +1,7 @@
 """Reglas de etapas, montos y semáforos (sin escribir en la base de datos)."""
 
 from datetime import date
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -124,6 +125,13 @@ class TestRequisitos(FrappeTestCase):
 	def test_ganada_exige_orden_de_venta(self):
 		self.assertEqual(len(etapas.faltantes(oportunidad(), CFG.etapa("ganada"), CFG, RelacionadosFalsos())), 1)
 		self.assertEqual(etapas.faltantes(oportunidad(), CFG.etapa("ganada"), CFG, RelacionadosFalsos(ordenes=1)), [])
+
+	def test_ganada_con_orden_vinculada(self):
+		op = oportunidad(**{etapas.CAMPO_ORDEN_DE_VENTA: "SO-PRUEBA"})
+		with patch.object(etapas.frappe.db, "get_value", return_value=1):
+			self.assertEqual(etapas.faltantes(op, CFG.etapa("ganada"), CFG, RelacionadosFalsos()), [])
+		with patch.object(etapas.frappe.db, "get_value", return_value=0):
+			self.assertEqual(len(etapas.faltantes(op, CFG.etapa("ganada"), CFG, RelacionadosFalsos())), 1)
 
 	def test_motivo_generico_no_es_valido(self):
 		generico = oportunidad(lost_reason="Especificar motivo")
