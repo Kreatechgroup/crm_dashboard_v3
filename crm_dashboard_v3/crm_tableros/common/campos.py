@@ -6,6 +6,7 @@ from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_ETAPA,
 	CAMPO_FECHA_PROXIMO_PASO,
 	CAMPO_FECHA_RETOMAR,
+	CAMPO_ORDEN_DE_VENTA,
 	CAMPO_PROXIMO_PASO,
 )
 from crm_dashboard_v3.crm_tableros.common.tableros import titulos_de_todas_las_etapas
@@ -43,6 +44,15 @@ def definicion_campos() -> dict:
 				"label": "Fecha del próximo paso",
 				"fieldtype": "Date",
 				"insert_after": CAMPO_PROXIMO_PASO,
+			},
+			{
+				"fieldname": CAMPO_ORDEN_DE_VENTA,
+				"label": "Orden de venta vinculada",
+				"fieldtype": "Link",
+				"options": "Sales Order",
+				"insert_after": CAMPO_FECHA_PROXIMO_PASO,
+				"read_only": 1,
+				"description": "Orden existente con la que se cerró como ganada (si no se creó desde su cotización).",
 			},
 		],
 	}

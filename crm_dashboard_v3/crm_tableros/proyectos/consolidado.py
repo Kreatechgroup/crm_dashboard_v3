@@ -114,13 +114,16 @@ def _tarjeta(nombre, empleado, datos: list[dict], modelos, meses, ctx, detalle: 
 			for mes in meses
 		],
 	}
+	# La operación de comisión se ve en todas las tarjetas; el detalle por factura
+	# y los documentos vinculados solo en la vista de un asesor.
+	tarjeta["comision"] = _comision(junta["facturas"], modelos, con_filas=detalle)
+	tarjeta["detalle"] = detalle
 	if detalle:
-		tarjeta["comision"] = _comision(junta["facturas"], modelos)
 		tarjeta["documentos"] = _documentos(junta)
 	return tarjeta
 
 
-def _comision(facturas, modelos) -> dict:
+def _comision(facturas, modelos, con_filas: bool) -> dict:
 	resumen = {}
 	for modelo in modelos + [TOTAL]:
 		lista = facturas if modelo == TOTAL else [f for f in facturas if f.modelo == modelo]
@@ -154,7 +157,9 @@ def _comision(facturas, modelos) -> dict:
 				"futura": f.comision_futura,
 			}
 			for f in sorted(facturas, key=lambda x: -x.comision)
-		],
+		]
+		if con_filas
+		else [],
 	}
 
 

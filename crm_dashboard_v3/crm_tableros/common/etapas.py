@@ -17,6 +17,8 @@ CAMPO_FECHA_RETOMAR = "custom_fecha_retomar"
 CAMPO_PROXIMO_PASO = "custom_proximo_paso"
 CAMPO_FECHA_PROXIMO_PASO = "custom_fecha_proximo_paso"
 CAMPO_PRESUPUESTO = "presupuesto_declarado_por_el_cliente"
+# Orden de venta existente vinculada a mano al cerrar como ganada (si no viene de su cotización).
+CAMPO_ORDEN_DE_VENTA = "custom_orden_de_venta"
 STATUS_CERRADOS = ("Lost", "Converted", "Closed")
 
 
@@ -208,6 +210,14 @@ class DatosRelacionados:
 		)
 
 
+def orden_vinculada(doc) -> str | None:
+	"""Orden de venta enviada que se vinculó a mano a la oportunidad."""
+	orden = doc.get(CAMPO_ORDEN_DE_VENTA)
+	if orden and frappe.db.get_value("Sales Order", orden, "docstatus") == 1:
+		return orden
+	return None
+
+
 def _proximo_paso_con_fecha(doc, rel: DatosRelacionados) -> bool:
 	paso = proximo_paso_de(doc, rel.ultima_actividad)
 	return bool(paso.texto and paso.fecha)
@@ -237,7 +247,10 @@ REQUISITOS = {
 		_("cotización enviada (submit) ligada"),
 		lambda d, r, c: bool(r.cotizaciones_enviadas),
 	),
-	"orden_de_venta": (_("orden de venta creada"), lambda d, r, c: bool(r.ordenes_de_venta)),
+	"orden_de_venta": (
+		_("orden de venta creada o vinculada"),
+		lambda d, r, c: bool(r.ordenes_de_venta or orden_vinculada(d)),
+	),
 	"motivo_perdida": (
 		_("motivo de pérdida específico"),
 		lambda d, r, c: any(motivo_valido(m, c) for m in motivos_de(d)),

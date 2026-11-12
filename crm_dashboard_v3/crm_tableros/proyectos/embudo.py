@@ -83,6 +83,7 @@ def meta_y_facturado(asesor, t, ctx) -> dict:
 		asesor.sales_persons, asesor.usuario, ctx.company, ctx.desde, ctx.hasta, t.modelo_por_defecto
 	)
 	return {
+		"asesor": asesor.nombre,
 		"meta": sum(meta.values()),
 		"facturado": fact["monto"],
 		"facturas": fact["facturas"],
@@ -163,12 +164,28 @@ def _indicadores(grupo, ventas_asesores, ctx) -> dict:
 	sin_fecha = [o for o in en_pronostico if not o.fecha_cierre]
 	vigentes = [o for o in grupo["activas"] if o.etapa.clave in ("prop", "neg")]
 	vencidas = grupo["vencidas"]
+	filas = [
+		{
+			"name": f.name,
+			"cliente": f.cliente,
+			"fecha": str(f.fecha),
+			"modelo": f.modelo,
+			"monto": f.monto,
+			"distribucion": f.distribucion,
+			"propia": f.propia,
+			"nota_de_credito": f.nota_de_credito,
+			"asesor": v.get("asesor", ""),
+		}
+		for v in ventas_asesores
+		for f in v["filas"]
+	]
 	return {
 		"meta": {
 			"meta": meta,
 			"facturado": facturado,
 			"porcentaje": round(facturado / meta * 100) if meta else 0,
 			"facturas": facturas,
+			"filas": sorted(filas, key=lambda x: -x["monto"]),
 			"por_modelo": por_modelo,
 			"ritmo": ritmo(facturado, meta, ctx.fraccion_del_mes),
 			"ritmo_esperado": round(ctx.fraccion_del_mes * 100),
@@ -207,10 +224,13 @@ def _tarjeta(o, mostrar_asesor: bool) -> dict:
 		"cliente": o.cliente,
 		"modelo": o.modelo,
 		"monto": o.monto,
+		"ponderado": _ponderado(o) if _en_pronostico(o) else 0,
+		"cierre": str(o.fecha_cierre) if o.fecha_cierre else None,
 		"dias": o.dias,
 		"semaforo": o.semaforo,
 		"tipo": o.tipo,
 		"etapa": o.etapa.titulo,
+		"etapa_clave": o.etapa.clave,
 		"asesor": o.asesor if mostrar_asesor else "",
 		"proximo": o.proximo,
 		"extra": extra,
