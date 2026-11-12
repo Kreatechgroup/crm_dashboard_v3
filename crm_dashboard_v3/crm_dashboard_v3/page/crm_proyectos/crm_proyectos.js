@@ -1,8 +1,8 @@
 // Página CRM Proyectos (asesores de Plus, Proyectos y Retail juntos) · diseño de docs/mockup.html.
-// Solo pinta lo que calcula el servidor y llama acciones.
+// Hereda la plantilla común crm_tableros.TableroBase (public/js/crm_tableros/common.js):
+// contexto, encabezado, mes, tienda, "Ver:" de jefes y mensaje de sin acceso.
 
 const API_PROYECTOS = "crm_dashboard_v3.crm_tableros.proyectos.api.";
-const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 frappe.pages["crm-proyectos"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
@@ -10,9 +10,7 @@ frappe.pages["crm-proyectos"].on_page_load = function (wrapper) {
 		title: __("CRM Proyectos"),
 		single_column: true,
 	});
-	frappe.require("/assets/crm_dashboard_v3/js/crm_tableros/common.js", () => {
-		wrapper.tablero = new TableroProyectos(page);
-	});
+	wrapper.tablero = new TableroProyectos(page);
 };
 
 frappe.pages["crm-proyectos"].on_page_show = function (wrapper) {
@@ -22,14 +20,11 @@ frappe.pages["crm-proyectos"].on_page_show = function (wrapper) {
 	}
 };
 
-class TableroProyectos {
+class TableroProyectos extends crm_tableros.TableroBase {
 	constructor(page) {
-		this.page = page;
-		this.estado = {
+		super(page, { metodo: API_PROYECTOS + "get_tablero", titulo: __("CRM Proyectos") });
+		Object.assign(this.estado, {
 			vista: "embudo",
-			mes: null,
-			asesor: null,
-			establecimiento: null,
 			filtro_modelo: "",
 			filtro_tipo: "",
 			ver_cerradas: false,
@@ -49,65 +44,16 @@ class TableroProyectos {
 			modo_cons: "",
 			com_abierta: null,
 			det: null,
-		};
-		this.datos = null;
+		});
 		this.historico = null;
 		this.consolidado = null;
 		this.op = null;
-		this.page.set_secondary_action(__("Actualizar"), () => this.cargar(), "refresh");
-		this.$body = $('<div class="crm"></div>').appendTo(this.page.main);
 		this.enlazar_eventos();
 		this.cargar();
 	}
 
 	actividad_vacia() {
 		return { tipo: "", com: "", prox: "" };
-	}
-
-	// ------------------------------------------------------------------
-	// Utilidades de formato
-	// ------------------------------------------------------------------
-
-	e(texto) {
-		return crm_tableros.esc(texto);
-	}
-
-	dinero(monto) {
-		return crm_tableros.dinero(monto, this.datos.moneda);
-	}
-
-	compacto(n) {
-		if (Math.abs(n) >= 1000000) return (n / 1000000).toFixed(1) + " M";
-		if (Math.abs(n) >= 1000) return Math.round(n / 1000) + "k";
-		return String(Math.round(n));
-	}
-
-	// "16 oct" (con año si no es el actual).
-	fecha(valor) {
-		if (!valor) return "";
-		const [y, m, d] = String(valor).slice(0, 10).split("-");
-		const anio = String(new Date().getFullYear());
-		return `${Number(d)} ${MESES_CORTOS[Number(m) - 1]}${y !== anio ? " " + y : ""}`;
-	}
-
-	tag(sem, texto, chica) {
-		return `<span class="crm-tag crm-tag-${this.e(sem.clave)} ${chica ? "crm-tag-sm" : ""}">${this.e(texto)}<span class="crm-sr"> · ${this.e(
-			sem.texto
-		)}</span></span>`;
-	}
-
-	es_alcance_individual() {
-		return !this.datos.es_jefe || !!this.datos.asesor;
-	}
-
-	nombre_alcance() {
-		if (!this.datos.es_jefe) return this.datos.nombre_usuario;
-		const a = this.datos.asesores.find((x) => x.empleado === this.datos.asesor);
-		return a ? a.nombre : __("Toda la tienda");
-	}
-
-	primer_nombre(nombre) {
-		return (nombre || "").split(" ")[0];
 	}
 
 	texto_modelos() {
@@ -119,31 +65,53 @@ class TableroProyectos {
 	}
 
 	// ------------------------------------------------------------------
-	// Carga de datos
+	// Puntos de extensión de la plantilla
 	// ------------------------------------------------------------------
 
-	args() {
-		const { mes, asesor, establecimiento } = this.estado;
-		return { mes, asesor, establecimiento };
+	antes_de_cargar() {
+		this.historico = null;
+		this.consolidado = null;
 	}
 
-	cargar() {
-		return crm_tableros
-			.llamar(API_PROYECTOS + "get_tablero", this.args(), { mensaje: __("Calculando tablero…") })
-			.then((d) => {
-				this.datos = d;
-				this.historico = null;
-				this.consolidado = null;
-				this.estado.mes = d.mes;
-				this.estado.establecimiento = d.establecimiento;
-				this.page.set_title(__("CRM Proyectos"));
-				this.pintar();
-				if (d.mensaje) return;
-				if (this.estado.sel) this.cargar_oportunidad(this.estado.sel, false);
-				if (this.estado.vista === "consolidado") this.cargar_consolidado();
-				else this.cargar_historico();
-			});
+	despues_de_cargar() {
+		if (this.estado.sel) this.cargar_oportunidad(this.estado.sel, false);
+		if (this.estado.vista === "consolidado") this.cargar_consolidado();
+		else this.cargar_historico();
 	}
+
+	al_cambiar_alcance() {
+		Object.assign(this.estado, { sel: null, lista: null, det: null, com_abierta: null, perdiendo: null });
+		this.op = null;
+	}
+
+	html_contenido() {
+		const vistas = [
+			["embudo", __("Embudo · {0}", [this.texto_modelos()])],
+			["consolidado", __("Consolidado por asesor · {0}", [this.texto_modelos()])],
+		]
+			.map(
+				([k, label]) =>
+					`<button type="button" role="tab" class="crm-vista" aria-selected="${this.estado.vista === k}"
+						data-accion="vista" data-valor="${k}">${this.e(label)}</button>`
+			)
+			.join("");
+		return `
+			<div role="tablist" aria-label="${__("Vistas del tablero")}" class="crm-vistas">${vistas}</div>
+			${this.html_ver()}
+			${this.estado.vista === "consolidado" ? `<section class="crm-consolidado crm-card">${this.html_cargando()}</section>` : this.html_vista_embudo()}`;
+	}
+
+	despues_de_pintar() {
+		if (this.estado.vista === "consolidado") {
+			if (this.consolidado) this.pintar_consolidado();
+		} else {
+			this.pintar_panel();
+		}
+	}
+
+	// ------------------------------------------------------------------
+	// Carga de datos secundarios
+	// ------------------------------------------------------------------
 
 	cargar_historico() {
 		return crm_tableros.llamar(API_PROYECTOS + "get_historico", this.args(), { freeze: false }).then((h) => {
@@ -195,89 +163,8 @@ class TableroProyectos {
 	}
 
 	// ------------------------------------------------------------------
-	// Página
+	// Vista Embudo
 	// ------------------------------------------------------------------
-
-	pintar() {
-		const d = this.datos;
-		if (d.mensaje) {
-			this.$body.html(`
-				${this.html_encabezado()}
-				<div class="crm-vacio-total"><h2>${this.e(d.titulo)}</h2><p>${this.e(d.mensaje)}</p></div>`);
-			return;
-		}
-		const vistas = [
-			["embudo", __("Embudo · {0}", [this.texto_modelos()])],
-			["consolidado", __("Consolidado por asesor · {0}", [this.texto_modelos()])],
-		]
-			.map(
-				([k, label]) =>
-					`<button type="button" role="tab" class="crm-vista" aria-selected="${this.estado.vista === k}"
-						data-accion="vista" data-valor="${k}">${this.e(label)}</button>`
-			)
-			.join("");
-		this.$body.html(`
-			${this.html_encabezado()}
-			<div role="tablist" aria-label="${__("Vistas del tablero")}" class="crm-vistas">${vistas}</div>
-			${this.html_ver()}
-			${this.estado.vista === "consolidado" ? `<section class="crm-consolidado crm-card">${this.html_cargando()}</section>` : this.html_vista_embudo()}`);
-		if (this.estado.vista === "consolidado" && this.consolidado) this.pintar_consolidado();
-		if (this.estado.vista !== "consolidado") this.pintar_panel();
-	}
-
-	html_encabezado() {
-		const d = this.datos;
-		const meses = (d.meses || [])
-			.map((m) => `<option value="${this.e(m.valor)}" ${m.valor === d.mes ? "selected" : ""}>${this.e(m.etiqueta)}</option>`)
-			.join("");
-		const tiendas =
-			d.es_jefe && d.establecimientos && d.establecimientos.length > 1
-				? `<label class="crm-campo-inline">${__("Tienda")}
-						<select class="crm-select" data-cambio="establecimiento">${d.establecimientos
-							.map((x) => `<option ${x === d.establecimiento ? "selected" : ""}>${this.e(x)}</option>`)
-							.join("")}</select></label>`
-				: "";
-		return `
-			<div class="crm-encabezado">
-				<div>
-					<h1>${this.e(d.titulo)}</h1>
-					<p>${this.e(this.subtitulo())}</p>
-				</div>
-				<div class="crm-encabezado-filtros">
-					${tiendas}
-					<label class="crm-campo-inline">${__("Mes")}<select class="crm-select" data-cambio="mes">${meses}</select></label>
-				</div>
-			</div>`;
-	}
-
-	subtitulo() {
-		const d = this.datos;
-		if (!d.subtitulo) return "";
-		const corte = d.dia_de_corte && d.mes === d.dia_de_corte.slice(0, 7) ? " · " + __("al {0}", [this.fecha(d.dia_de_corte)]) : "";
-		const sesion = d.es_jefe ? " · " + __("sesión: {0}", [d.nombre_usuario]) : "";
-		return d.subtitulo + corte + sesion;
-	}
-
-	html_ver() {
-		const d = this.datos;
-		if (!d.es_jefe) return "";
-		const opciones = [[null, __("Toda la tienda")]].concat(d.asesores.map((a) => [a.empleado, a.nombre]));
-		return `
-			<div role="group" aria-label="${__("Qué ver")}" class="crm-ver">
-				<span class="crm-ver-label">${__("Ver:")}</span>
-				${opciones
-					.map(
-						([v, label]) =>
-							`<button type="button" class="crm-pildora" aria-pressed="${(d.asesor || null) === v}"
-								data-accion="asesor" data-valor="${this.e(v || "")}">${this.e(label)}</button>`
-					)
-					.join("")}
-			</div>`;
-	}
-
-	html_cargando() {
-		return `<p class="crm-cargando">${__("Cargando…")}</p>`;
-	}
 
 	html_vista_embudo() {
 		return `
@@ -339,7 +226,7 @@ class TableroProyectos {
 				<div class="crm-kpi-pie">${this.e(desglose)}</div>
 			</div>
 			<div class="crm-card">
-				<div class="crm-kpi-titulo">${this.e(__("Pronóstico de {0} · {1}", [d.etiqueta_mes.split(" ")[0].toLowerCase(), modelos]))}</div>
+				<div class="crm-kpi-titulo">${this.e(__("Pronóstico de {0} · {1}", [this.mes_en_texto(), modelos]))}</div>
 				<button type="button" class="crm-kpi-valor crm-kpi-morado" data-accion="lista" data-valor="mes">${this.e(this.dinero(pr.mes))}</button>
 				<div class="crm-kpi-pie">${__("Todo el embudo:")} <button type="button" class="crm-boton-texto" data-accion="lista"
 					data-valor="fc">${this.e(this.dinero(pr.total))}</button> ${__("ponderado")}</div>
@@ -732,7 +619,7 @@ class TableroProyectos {
 		const de_nombres = (nombres) => nombres.map((n) => this.tarjeta_por_nombre(n)).filter(Boolean);
 		if (clave === "won") {
 			return {
-				titulo: __("Facturado en {0}", [d.etiqueta_mes.split(" ")[0].toLowerCase()]),
+				titulo: __("Facturado en {0}", [this.mes_en_texto()]),
 				sub: __("Facturas atribuidas por Comisiones Asesor de su orden de venta, o creadas por el asesor sin orden"),
 				doctype: "Sales Invoice",
 				nombres: k.meta.facturas,
@@ -766,7 +653,7 @@ class TableroProyectos {
 		if (clave === "fc" || clave === "mes") {
 			const nombres = clave === "fc" ? k.pronostico.nombres_total : k.pronostico.nombres_mes;
 			return {
-				titulo: clave === "fc" ? __("Pronóstico de todo el embudo") : __("Pronóstico de {0}", [d.etiqueta_mes.split(" ")[0].toLowerCase()]),
+				titulo: clave === "fc" ? __("Pronóstico de todo el embudo") : __("Pronóstico de {0}", [this.mes_en_texto()]),
 				sub: clave === "fc" ? __("Activas · monto × probabilidad de la etapa") : __("Solo las que tienen cierre en el mes"),
 				doctype: "Opportunity",
 				nombres,
@@ -1204,7 +1091,7 @@ class TableroProyectos {
 					<div class="crm-estados">
 						<h2>${this.e(__("Oportunidades por estado · {0}", [this.texto_modelos()]))}</h2>
 						<p class="crm-historico-sub">${this.e(
-							__("{0} · creadas en {1} (al {2}) · {3} oportunidades", [quien, this.datos.etiqueta_mes.split(" ")[0].toLowerCase(), corte, actual.total])
+							__("{0} · creadas en {1} (al {2}) · {3} oportunidades", [quien, this.mes_en_texto(), corte, actual.total])
 						)}</p>
 						<p class="crm-nota">${__("Tasa de cierre de los últimos {0} meses:", [h.meses.length])} <strong>${
 			h.tasa_cierre == null ? "—" : this.e(h.tasa_cierre + "%")
@@ -1289,9 +1176,8 @@ class TableroProyectos {
 	}
 
 	subtitulo_mes() {
-		const d = this.datos;
-		const corte = d.dia_de_corte && d.mes === d.dia_de_corte.slice(0, 7) ? " " + __("al {0}", [this.fecha(d.dia_de_corte)]) : "";
-		return d.etiqueta_mes + corte;
+		const corte = this.texto_corte();
+		return this.datos.etiqueta_mes + (corte ? " " + corte : "");
 	}
 
 	clase_modelo(k) {
@@ -1324,7 +1210,7 @@ class TableroProyectos {
 			[__("Cotizaciones vigentes"), (k, x) => celda(k, "vigentes", this.dinero(x.vigentes.monto), __("{0} abiertas", [x.vigentes.nombres.length]), "Quotation")],
 			[__("Oportunidades abiertas"), (k, x) => celda(k, "abiertas", String(x.abiertas.cantidad), "", "Opportunity")],
 			[
-				__("Oportunidades creadas en {0}", [this.datos.etiqueta_mes.split(" ")[0].toLowerCase()]),
+				__("Oportunidades creadas en {0}", [this.mes_en_texto()]),
 				(k, x) => celda(k, "creadas", String(x.creadas.cantidad), __("{0} ganadas · {1} perdidas", [x.creadas.ganadas, x.creadas.perdidas]), "Opportunity"),
 			],
 		];
@@ -1365,7 +1251,7 @@ class TableroProyectos {
 					)}</span></div></td>`;
 				})
 				.join("")}</tr>`;
-		const mes = this.datos.etiqueta_mes.split(" ")[0].toLowerCase();
+		const mes = this.mes_en_texto();
 		const resumen = `
 			<div class="crm-scroll">
 				<table class="crm-tabla crm-tabla-cons">
@@ -1594,17 +1480,10 @@ class TableroProyectos {
 	// Eventos
 	// ------------------------------------------------------------------
 
+	// Los botones data-accion y los selects data-cambio los reparte la plantilla
+	// (accion / cambio); aquí solo los campos que se guardan y los formularios.
 	enlazar_eventos() {
 		const $b = this.$body;
-		$b.on("click", "button[data-accion]", (ev) => {
-			ev.preventDefault();
-			const $t = $(ev.currentTarget);
-			this.accion($t.attr("data-accion"), $t);
-		});
-		$b.on("change", "[data-cambio]", (ev) => {
-			const $t = $(ev.currentTarget);
-			this.cambio($t.attr("data-cambio"), $t.val());
-		});
 		$b.on("change", "[data-campo]", (ev) => {
 			const $c = $(ev.currentTarget);
 			this.guardar_campo($c.attr("data-campo"), $c.val());
@@ -1620,24 +1499,11 @@ class TableroProyectos {
 	}
 
 	cambio(clave, valor) {
-		if (clave === "mes") {
-			this.estado.mes = valor || null;
-			this.cargar();
-		} else if (clave === "establecimiento") {
-			this.estado.establecimiento = valor || null;
-			this.estado.asesor = null;
-			this.cargar();
-		} else if (clave === "filtro_modelo" || clave === "filtro_tipo") {
+		if (clave === "filtro_modelo" || clave === "filtro_tipo") {
 			this.estado[clave] = valor;
 			this.repintar_embudo();
 			this.marcar_tarjeta();
 		}
-	}
-
-	elegir_asesor(empleado) {
-		Object.assign(this.estado, { asesor: empleado || null, sel: null, lista: null, det: null, com_abierta: null, perdiendo: null });
-		this.op = null;
-		this.cargar();
 	}
 
 	accion(nombre, $t) {
@@ -1650,7 +1516,6 @@ class TableroProyectos {
 				if (valor === "consolidado" && !this.consolidado) this.cargar_consolidado();
 				if (valor === "embudo" && !this.historico) this.cargar_historico();
 			},
-			asesor: () => this.elegir_asesor(valor),
 			erp: () => crm_tableros.abrir_lista($t.attr("data-doctype"), this.nombres_de($t.attr("data-nombres"), $t.attr("data-fila"))),
 			"erp-lista": () => this.lista_actual && crm_tableros.abrir_lista(this.lista_actual.doctype, this.lista_actual.nombres),
 			lista: () => {

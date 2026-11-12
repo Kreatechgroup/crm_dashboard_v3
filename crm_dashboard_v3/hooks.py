@@ -25,8 +25,10 @@ app_license = "mit"
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/crm_dashboard_v3/css/crm_dashboard_v3.css"
-# app_include_js = "/assets/crm_dashboard_v3/js/crm_dashboard_v3.js"
+# Plantilla común de los tableros CRM: debe estar cargada antes que el script de
+# cada página (crm-proyectos hereda de crm_tableros.TableroBase).
+app_include_css = "/assets/crm_dashboard_v3/css/crm_tableros/common.css"
+app_include_js = "/assets/crm_dashboard_v3/js/crm_tableros/common.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/crm_dashboard_v3/css/crm_dashboard_v3.css"
