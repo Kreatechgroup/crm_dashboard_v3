@@ -37,7 +37,7 @@ class TestCriterio1RequerimientoYDiseno(BaseCRMProyectos):
 		op = crear_oportunidad()
 		with self.assertRaises(frappe.ValidationError):
 			mover(op, "req")
-		self.assertEqual(frappe.db.get_value("Opportunity", op.name, CAMPO_ETAPA), CFG.etapa("cal").titulo)
+		self.assertEqual(frappe.db.get_value("Opportunity", op.name, CAMPO_ETAPA), CFG.etapa("cal").valor)
 
 	def test_sin_proximo_paso_no_avanza(self):
 		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=5000, fecha_estimada_aprobacion=nowdate())
@@ -63,7 +63,7 @@ class TestCriterio1RequerimientoYDiseno(BaseCRMProyectos):
 		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=5000, fecha_estimada_aprobacion=nowdate())
 		crear_actividad(op)
 		mover(op, "req")
-		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("req").titulo)
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("req").valor)
 
 	def test_con_todo_avanza_usando_los_campos_de_proximo_paso(self):
 		op = crear_oportunidad(
@@ -72,7 +72,7 @@ class TestCriterio1RequerimientoYDiseno(BaseCRMProyectos):
 			**{CAMPO_PROXIMO_PASO: "Presentar diseño", CAMPO_FECHA_PROXIMO_PASO: add_days(nowdate(), 2)},
 		)
 		mover(op, "req")
-		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("req").titulo)
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("req").valor)
 
 	def test_la_actividad_actualiza_el_proximo_paso(self):
 		op = crear_oportunidad()
@@ -169,7 +169,7 @@ class TestCriterio3PropuestasVencidas(BaseCRMProyectos):
 		self.assertNotIn(q.name, self._nombres_vencidas(op))
 		op.reload()
 		self.assertEqual(op.status, "Lost")
-		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("perdida").titulo)
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("perdida").valor)
 
 	def test_perder_exige_motivo_especifico(self):
 		op, q = self._vencida()
@@ -199,7 +199,7 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		op = crear_oportunidad()
 		eventos.marcar_ganada(op.name)
 		op.reload()
-		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").titulo)
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
 		self.assertEqual(op.status, "Converted")
 
 	def test_ganada_no_regresa_a_otra_etapa(self):
@@ -220,13 +220,51 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		op.status = "Lost"
 		op.lost_reason = MOTIVO_PRUEBA
 		op.save()
-		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("perdida").titulo)
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("perdida").valor)
 
 	def test_especificar_motivo_no_es_valido(self):
 		op = crear_oportunidad()
 		with self.assertRaises(frappe.ValidationError):
 			api.mover_etapa(op.name, "perdida", motivo="Especificar motivo")
 		self.assertEqual(frappe.db.get_value("Opportunity", op.name, "status"), "Open")
+
+
+class TestEmbudoStateV2(BaseCRMProyectos):
+	"""La etapa vive en embudo_state_v2: los scripts existentes del ERP siguen funcionando."""
+
+	def _guardar_con(self, op, valor):
+		op.reload()
+		op.set(CAMPO_ETAPA, valor)
+		op.save()
+		return op
+
+	def test_script_que_escribe_un_valor_viejo_no_se_bloquea(self):
+		# Como el Client Script de Quotation: pone «Presentar cotización» sin cotización enviada.
+		op = self._guardar_con(crear_oportunidad(), "Presentar cotización")
+		self.assertEqual(op.get(CAMPO_ETAPA), "Presentar cotización")
+		self.assertEqual(flt(op.probability), 50)
+
+	def test_cualquier_valor_de_la_etapa_da_su_probabilidad(self):
+		op = crear_oportunidad()
+		for valor, probabilidad in (("Crear el diseño", 25), ("Dar seguimiento", 75), ("Conocer", 10)):
+			self._guardar_con(op, valor)
+			self.assertEqual(flt(op.probability), probabilidad, valor)
+
+	def test_ganada_escrita_por_un_script_pone_converted(self):
+		# Como el Client Script de Sales Order.
+		op = self._guardar_con(crear_oportunidad(), "Ganada")
+		self.assertEqual(op.status, "Converted")
+
+	def test_descartada_no_cambia_el_status(self):
+		# Descartada queda pendiente de la migración (Perdida con motivo «No calificó»).
+		op = self._guardar_con(crear_oportunidad(), "Descartada")
+		self.assertEqual(op.status, "Open")
+
+	def test_el_tablero_escribe_el_valor_representativo(self):
+		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=5000, fecha_estimada_aprobacion=nowdate())
+		crear_actividad(op)
+		mover(op, "req")
+		self.assertEqual(op.get(CAMPO_ETAPA), "Tomar requerimiento")
 
 
 class TestRetailDePlus(BaseCRMProyectos):

@@ -104,13 +104,14 @@ Ajusta los nombres si el repositorio ya tiene otra convención; respeta la exist
 | Perdida | 0% | `Lost Reason` obligatorio; `status = Lost` |
 | En pausa | — | Fecha para retomar; no cuenta en el pronóstico |
 
-- `Opportunity.probability` se fija sola según la etapa (server-side, en un hook `validate`); el usuario no la edita.
+- **La etapa vive en `embudo_state_v2`** (decisión 2026-11-12): hay Server/Client Scripts, reportes, notificaciones y gráficas que leen y escriben sus 17 valores, así que no se cambian sus opciones. El tablero agrupa los 17 valores en las etapas nuevas (`mapa_valores` en la config) y, al mover una tarjeta, escribe el valor representativo de la etapa destino (`Etapa.valor`: Investigar al cliente, Tomar requerimiento, Presentar cotización, Negociar, Llamar después, Ganada, Perdida).
+- `Opportunity.probability` se fija sola según la etapa (server-side, en un hook `validate`, en todo guardado); el usuario no la edita. Los requisitos por etapa se validan en el servidor al mover desde el tablero (`acciones.cambiar_etapa`), no en `validate`, para no bloquear los scripts existentes que escriben `embudo_state_v2`.
 - Campos nuevos en Opportunity: `custom_proximo_paso` (Data) y `custom_fecha_proximo_paso` (Date). Créalos como **fixtures / Custom Field en código**, no a mano.
 - Etapa y status siempre coherentes: Ganada ↔ Converted, Perdida ↔ Lost.
 - No permitir el texto genérico "Especificar motivo" como razón de pérdida.
 - La validación de campos obligatorios por etapa vive en **servidor** (la UI solo muestra qué falta y no mueve la tarjeta).
 
-**Migración** (patch idempotente) de los valores actuales:
+**Migración** (patch idempotente) — **pospuesta por decisión del negocio (2026-11-12)**. Con la etapa en `embudo_state_v2` no hay que reescribir valores; quedaría corregir la probabilidad guardada y las incoherencias etapa/status. Equivalencias que usa el tablero:
 - Investigar al cliente, Clasificar, Presentar empresa, Conocer → 1 · Calificar
 - Tomar requerimiento, Definir la solución, Presentar solución, Crear el diseño, Presentar diseño → 2 · Requerimiento y diseño
 - Crear la cotización, Presentar cotización → 3 · Propuesta enviada

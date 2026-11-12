@@ -73,7 +73,7 @@ class TestConfiguracionEtapas(FrappeTestCase):
 		self.assertIsNone(CFG.anterior("cal"))
 		self.assertEqual(CFG.anterior("prop").clave, "req")
 
-	def test_mapa_legado(self):
+	def test_los_17_valores_se_agrupan_en_las_etapas(self):
 		casos = {
 			"Investigar al cliente": "cal",
 			"Presentar diseño": "req",
@@ -86,9 +86,14 @@ class TestConfiguracionEtapas(FrappeTestCase):
 			fila = oportunidad(embudo_state_v2=viejo)
 			self.assertEqual(etapas.etapa_efectiva(fila, CFG).clave, nuevo, viejo)
 
-	def test_etapa_nueva_tiene_prioridad_sobre_legado(self):
-		fila = oportunidad(**{CAMPO_ETAPA: "4 · Negociación", "embudo_state_v2": "Conocer"})
-		self.assertEqual(etapas.etapa_efectiva(fila, CFG).clave, "neg")
+	def test_el_valor_que_escribe_cada_etapa_vuelve_a_su_etapa(self):
+		for etapa in CFG.etapas:
+			self.assertTrue(etapa.valor, etapa.clave)
+			self.assertEqual(CFG.por_valor(etapa.valor).clave, etapa.clave)
+
+	def test_la_etapa_vive_en_embudo_state_v2(self):
+		self.assertEqual(CAMPO_ETAPA, "embudo_state_v2")
+		self.assertIsNone(CFG.por_valor("Valor que no existe"))
 
 	def test_incoherencia_etapa_status(self):
 		self.assertTrue(etapas.es_incoherente(oportunidad(embudo_state_v2="Ganada", status="Open"), CFG))

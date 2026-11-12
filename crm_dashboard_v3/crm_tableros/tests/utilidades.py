@@ -77,7 +77,7 @@ def crear_oportunidad(sales_model=PROYECTOS, **campos):
 			"tipo_de_oportunidad": _tipo_de_oportunidad(),
 			"source": ORIGEN_PRUEBA,
 			"transaction_date": nowdate(),
-			CAMPO_ETAPA: CFG.etapa("cal").titulo,
+			CAMPO_ETAPA: CFG.etapa("cal").valor,
 			**campos,
 		}
 	)
@@ -110,10 +110,12 @@ def crear_cotizacion(oportunidad, valid_till, transaction_date=None, monto=10000
 	return q
 
 
-def mover(oportunidad, clave):
+def mover(oportunidad, clave, **extra):
+	"""Mueve de etapa como lo hace el tablero (con validación de requisitos en el servidor)."""
+	from crm_dashboard_v3.crm_tableros.proyectos import api
+
+	api.mover_etapa(oportunidad.name, clave, **extra)
 	oportunidad.reload()
-	oportunidad.set(CAMPO_ETAPA, CFG.etapa(clave).titulo)
-	oportunidad.save()
 	return oportunidad
 
 
