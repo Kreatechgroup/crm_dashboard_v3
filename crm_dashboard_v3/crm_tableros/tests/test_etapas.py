@@ -6,11 +6,13 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, nowdate
 
-from crm_dashboard_v3.crm_tableros.common import etapas, formato
+from crm_dashboard_v3.crm_tableros.common import etapas, formato, tableros
 from crm_dashboard_v3.crm_tableros.common.contexto import Contexto
-from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA
+from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA, CAMPO_FECHA_PROXIMO_PASO, CAMPO_PROXIMO_PASO
+from crm_dashboard_v3.crm_tableros.proyectos.config import PROYECTOS, RETAIL, TABLERO
 
-CFG = etapas.config_de("Proyectos")
+CFG = TABLERO.etapas
+PLUS = TABLERO.establecimientos[0]
 
 
 class RelacionadosFalsos:
@@ -38,9 +40,22 @@ def oportunidad(**campos):
 
 
 class TestConfiguracionEtapas(FrappeTestCase):
-	def test_modelo_sin_config_no_aplica(self):
-		self.assertIsNone(etapas.config_de("Retail"))
-		self.assertIsNone(etapas.config_de(None))
+	def test_plus_junta_proyectos_y_retail(self):
+		self.assertIs(tableros.tablero_de(PROYECTOS, PLUS), TABLERO)
+		self.assertIs(tableros.tablero_de(RETAIL, PLUS), TABLERO)
+
+	def test_fuera_de_plus_no_aplica(self):
+		self.assertIsNone(tableros.tablero_de(RETAIL, "Establecimiento que no es de Plus"))
+		self.assertIsNone(tableros.tablero_de(PROYECTOS, None))
+		self.assertIsNone(tableros.tablero_de(None, PLUS))
+
+	def test_modelo_de_cada_sales_person(self):
+		self.assertEqual(TABLERO.modelo_de_sales_person("Asesor de Proyectos Retail Jimena Celis - UM"), PROYECTOS)
+		self.assertEqual(TABLERO.modelo_de_sales_person("Asesor Retail Jimena Celis - UM"), RETAIL)
+
+	def test_jefe_por_rol_de_plus_y_no_por_asociado(self):
+		self.assertIn("Jefe de Plus", TABLERO.roles_jefe)
+		self.assertNotIn("Asociado", TABLERO.roles_jefe)
 
 	def test_probabilidades_por_etapa(self):
 		esperado = {"cal": 10, "req": 25, "prop": 50, "neg": 75, "ganada": 100, "perdida": 0, "pausa": None}
@@ -115,6 +130,34 @@ class TestRequisitos(FrappeTestCase):
 		especifico = oportunidad(lost_reason="Oportunidad Duplicada")
 		self.assertEqual(len(etapas.faltantes(generico, CFG.etapa("perdida"), CFG, RelacionadosFalsos())), 1)
 		self.assertEqual(etapas.faltantes(especifico, CFG.etapa("perdida"), CFG, RelacionadosFalsos()), [])
+
+
+class TestProximoPaso(FrappeTestCase):
+	def test_campos_propios_tienen_prioridad(self):
+		op = oportunidad(**{CAMPO_PROXIMO_PASO: "Presentar diseño", CAMPO_FECHA_PROXIMO_PASO: "2026-11-20"})
+		actividad = frappe._dict(activity_type="Llamada", next_contact_date="2026-11-30")
+		paso = etapas.proximo_paso_de(op, actividad)
+		self.assertEqual(paso.texto, "Presentar diseño")
+		self.assertEqual(paso.fecha, date(2026, 11, 20))
+
+	def test_sin_campos_usa_la_ultima_actividad(self):
+		actividad = frappe._dict(activity_type="Llamada", next_contact_date="2026-11-30")
+		paso = etapas.proximo_paso_de(oportunidad(), actividad)
+		self.assertIn("Llamada", paso.texto)
+		self.assertEqual(paso.fecha, date(2026, 11, 30))
+
+	def test_sin_nada_queda_vacio(self):
+		paso = etapas.proximo_paso_de(oportunidad(), None)
+		self.assertFalse(paso.texto)
+		self.assertIsNone(paso.fecha)
+
+	def test_negociacion_con_paso_propio_vencido_no_entra(self):
+		op = oportunidad(
+			opportunity_amount=1000,
+			fecha_estimada_aprobacion=nowdate(),
+			**{CAMPO_PROXIMO_PASO: "Llamar", CAMPO_FECHA_PROXIMO_PASO: add_days(nowdate(), -1)},
+		)
+		self.assertEqual(len(etapas.faltantes(op, CFG.etapa("neg"), CFG, RelacionadosFalsos())), 1)
 
 
 class TestMontosYFormato(FrappeTestCase):

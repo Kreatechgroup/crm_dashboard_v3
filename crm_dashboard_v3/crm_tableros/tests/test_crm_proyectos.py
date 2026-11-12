@@ -7,121 +7,27 @@ transacción al terminar cada clase.
 from unittest.mock import patch
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
-from frappe.utils import add_days, flt, get_first_day, get_last_day, getdate, nowdate
+from frappe.utils import add_days, flt, getdate, nowdate
 
-from crm_dashboard_v3.crm_tableros.common import acciones, consultas, etapas
-from crm_dashboard_v3.crm_tableros.common.campos import crear_campos
-from crm_dashboard_v3.crm_tableros.common.contexto import Asesor, Contexto
-from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA
-from crm_dashboard_v3.crm_tableros.proyectos import api
-
-CFG = etapas.config_de("Proyectos")
-MOTIVO_PRUEBA = "Prueba CRM V3 · eligió a la competencia"
-ORIGEN_PRUEBA = "Prueba CRM V3"
-ITEM_PRUEBA = "_Test Item CRM V3"
-
-
-def _compania():
-	return frappe.defaults.get_global_default("company") or frappe.get_all("Company", pluck="name", limit=1)[0]
-
-
-def _asegurar(doctype, nombre, **campos):
-	if not frappe.db.exists(doctype, nombre):
-		frappe.get_doc({"doctype": doctype, **campos}).insert()
-	return nombre
+from crm_dashboard_v3.crm_tableros.common import consultas, etapas, eventos
+from crm_dashboard_v3.crm_tableros.common.contexto import Asesor
+from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA, CAMPO_FECHA_PROXIMO_PASO, CAMPO_PROXIMO_PASO
+from crm_dashboard_v3.crm_tableros.proyectos import api, embudo
+from crm_dashboard_v3.crm_tableros.proyectos.config import RETAIL
+from crm_dashboard_v3.crm_tableros.tests.utilidades import (
+	CFG,
+	MOTIVO_PRUEBA,
+	BaseCRMProyectos,
+	contexto_de_prueba,
+	crear_actividad,
+	crear_cotizacion,
+	crear_oportunidad,
+	mover,
+)
 
 
-def _tipo_de_oportunidad():
-	campo = frappe.get_meta("Opportunity").get_field("tipo_de_oportunidad")
-	return next(o for o in (campo.options or "").split("\n") if o)
-
-
-def crear_lead():
-	return frappe.get_doc(
-		{
-			"doctype": "Lead",
-			"first_name": "Cliente Prueba CRM V3",
-			"lead_name": f"Cliente Prueba CRM V3 {frappe.generate_hash(length=6)}",
-			"company": _compania(),
-		}
-	).insert()
-
-
-def crear_oportunidad(**campos):
-	lead = crear_lead()
-	doc = frappe.get_doc(
-		{
-			"doctype": "Opportunity",
-			"opportunity_from": "Lead",
-			"party_name": lead.name,
-			"company": _compania(),
-			"sales_model": "Proyectos",
-			"tipo_de_oportunidad": _tipo_de_oportunidad(),
-			"source": ORIGEN_PRUEBA,
-			"transaction_date": nowdate(),
-			CAMPO_ETAPA: CFG.etapa("cal").titulo,
-			**campos,
-		}
-	)
-	return doc.insert()
-
-
-def crear_actividad(oportunidad, dias=3):
-	return acciones.registrar_actividad(oportunidad, "Llamada", "Seguimiento de prueba", add_days(nowdate(), dias))
-
-
-def crear_cotizacion(oportunidad, valid_till, transaction_date=None, monto=10000):
-	from erpnext.stock.doctype.item.test_item import make_item
-
-	make_item(ITEM_PRUEBA, {"is_stock_item": 0})
-	q = frappe.get_doc(
-		{
-			"doctype": "Quotation",
-			"quotation_to": "Lead",
-			"party_name": oportunidad.party_name,
-			"company": oportunidad.company,
-			"opportunity": oportunidad.name,
-			"sales_model": "Proyectos",
-			"transaction_date": transaction_date or nowdate(),
-			"valid_till": valid_till,
-			"items": [{"item_code": ITEM_PRUEBA, "qty": 1, "rate": monto}],
-		}
-	)
-	q.insert()
-	q.submit()
-	return q
-
-
-def mover(oportunidad, clave):
-	oportunidad.reload()
-	oportunidad.set(CAMPO_ETAPA, CFG.etapa(clave).titulo)
-	oportunidad.save()
-	return oportunidad
-
-
-def contexto_de_prueba():
-	hoy = getdate(nowdate())
-	return Contexto(
-		usuario=frappe.session.user,
-		nombre="Asesor de prueba",
-		desde=get_first_day(hoy),
-		hasta=get_last_day(hoy),
-		hoy=hoy,
-		company=_compania(),
-		moneda=frappe.get_cached_value("Company", _compania(), "default_currency"),
-	)
-
-
-class BaseCRMProyectos(FrappeTestCase):
-	@classmethod
-	def setUpClass(cls):
-		super().setUpClass()
-		crear_campos()
-		_asegurar("Lead Source", ORIGEN_PRUEBA, source_name=ORIGEN_PRUEBA)
-		for motivo in (MOTIVO_PRUEBA, "Especificar motivo"):
-			_asegurar("Lost Reason", motivo, lost_reason_name=motivo)
-			_asegurar("Quotation Lost Reason", motivo, order_lost_reason=motivo)
+def _asesor_de_prueba():
+	return Asesor(None, "Asesor de prueba", frappe.session.user, {})
 
 
 class TestCriterio1RequerimientoYDiseno(BaseCRMProyectos):
@@ -138,17 +44,42 @@ class TestCriterio1RequerimientoYDiseno(BaseCRMProyectos):
 		with self.assertRaises(frappe.ValidationError):
 			mover(op, "req")
 
+	def test_proximo_paso_sin_fecha_no_avanza(self):
+		op = crear_oportunidad(
+			presupuesto_declarado_por_el_cliente=5000,
+			fecha_estimada_aprobacion=nowdate(),
+			**{CAMPO_PROXIMO_PASO: "Presentar diseño"},
+		)
+		with self.assertRaises(frappe.ValidationError):
+			mover(op, "req")
+
 	def test_sin_fecha_de_cierre_no_avanza(self):
 		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=5000)
 		crear_actividad(op)
 		with self.assertRaises(frappe.ValidationError):
 			mover(op, "req")
 
-	def test_con_todo_avanza(self):
+	def test_con_todo_avanza_usando_la_actividad(self):
 		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=5000, fecha_estimada_aprobacion=nowdate())
 		crear_actividad(op)
 		mover(op, "req")
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("req").titulo)
+
+	def test_con_todo_avanza_usando_los_campos_de_proximo_paso(self):
+		op = crear_oportunidad(
+			presupuesto_declarado_por_el_cliente=5000,
+			fecha_estimada_aprobacion=nowdate(),
+			**{CAMPO_PROXIMO_PASO: "Presentar diseño", CAMPO_FECHA_PROXIMO_PASO: add_days(nowdate(), 2)},
+		)
+		mover(op, "req")
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("req").titulo)
+
+	def test_la_actividad_actualiza_el_proximo_paso(self):
+		op = crear_oportunidad()
+		crear_actividad(op, dias=4)
+		op.reload()
+		self.assertEqual(getdate(op.get(CAMPO_FECHA_PROXIMO_PASO)), getdate(add_days(nowdate(), 4)))
+		self.assertTrue(op.get(CAMPO_PROXIMO_PASO))
 
 	def test_la_api_tambien_valida(self):
 		op = crear_oportunidad()
@@ -177,11 +108,11 @@ class TestCriterio2ProbabilidadYPronostico(BaseCRMProyectos):
 		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=monto, fecha_estimada_aprobacion=nowdate())
 		crear_actividad(op)
 		ctx = contexto_de_prueba()
-		asesores = [Asesor(None, "Asesor de prueba", frappe.session.user, [])]
+		asesores = [_asesor_de_prueba()]
 
-		antes = api.construir_tablero(CFG, ctx, asesores)["kpis"]["pronostico"]
+		antes = embudo.construir(self.tablero, ctx, asesores)["kpis"]["pronostico"]
 		api.mover_etapa(op.name, "req")
-		despues = api.construir_tablero(CFG, ctx, asesores)["kpis"]["pronostico"]
+		despues = embudo.construir(self.tablero, ctx, asesores)["kpis"]["pronostico"]
 
 		self.assertIn(op.name, despues["nombres_total"])
 		self.assertAlmostEqual(despues["total"] - antes["total"], monto * (25 - 10) / 100, places=2)
@@ -189,10 +120,8 @@ class TestCriterio2ProbabilidadYPronostico(BaseCRMProyectos):
 
 	def test_en_pausa_no_cuenta_en_el_pronostico(self):
 		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=10000, fecha_estimada_aprobacion=nowdate())
-		ctx = contexto_de_prueba()
-		asesores = [Asesor(None, "Asesor de prueba", frappe.session.user, [])]
 		api.mover_etapa(op.name, "pausa", fecha_retomar=add_days(nowdate(), 10))
-		pronostico = api.construir_tablero(CFG, ctx, asesores)["kpis"]["pronostico"]
+		pronostico = embudo.construir(self.tablero, contexto_de_prueba(), [_asesor_de_prueba()])["kpis"]["pronostico"]
 		self.assertNotIn(op.name, pronostico["nombres_total"])
 
 	def test_pausa_exige_fecha_para_retomar(self):
@@ -215,6 +144,11 @@ class TestCriterio3PropuestasVencidas(BaseCRMProyectos):
 	def test_vencida_aparece(self):
 		op, q = self._vencida()
 		self.assertIn(q.name, self._nombres_vencidas(op))
+
+	def test_vencida_aparece_en_el_tablero(self):
+		op, q = self._vencida()
+		datos = embudo.construir(self.tablero, contexto_de_prueba(), [_asesor_de_prueba()])
+		self.assertIn(q.name, datos["kpis"]["vencidas"]["nombres"])
 
 	def test_vigente_no_aparece(self):
 		op = crear_oportunidad()
@@ -263,14 +197,14 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 
 	def test_orden_de_venta_enviada_marca_ganada(self):
 		op = crear_oportunidad()
-		etapas.marcar_ganada(op.name)
+		eventos.marcar_ganada(op.name)
 		op.reload()
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").titulo)
 		self.assertEqual(op.status, "Converted")
 
 	def test_ganada_no_regresa_a_otra_etapa(self):
 		op = crear_oportunidad()
-		etapas.marcar_ganada(op.name)
+		eventos.marcar_ganada(op.name)
 		with self.assertRaises(frappe.ValidationError):
 			mover(op, "neg")
 
@@ -293,3 +227,26 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		with self.assertRaises(frappe.ValidationError):
 			api.mover_etapa(op.name, "perdida", motivo="Especificar motivo")
 		self.assertEqual(frappe.db.get_value("Opportunity", op.name, "status"), "Open")
+
+
+class TestRetailDePlus(BaseCRMProyectos):
+	"""Las oportunidades Retail de los asesores de Plus usan las etapas de Proyectos y entran al tablero."""
+
+	def test_retail_de_plus_valida_requisitos(self):
+		op = crear_oportunidad(sales_model=RETAIL)
+		self.assertEqual(flt(op.probability), 10)
+		with self.assertRaises(frappe.ValidationError):
+			mover(op, "req")
+
+	def test_retail_de_plus_aparece_en_el_embudo_con_su_modelo(self):
+		op = crear_oportunidad(sales_model=RETAIL, presupuesto_declarado_por_el_cliente=3000)
+		datos = embudo.construir(self.tablero, contexto_de_prueba(), [_asesor_de_prueba()])
+		tarjetas = [t for c in datos["columnas"] for t in c["tarjetas"]]
+		tarjeta = next(t for t in tarjetas if t["name"] == op.name)
+		self.assertEqual(tarjeta["modelo"], RETAIL)
+
+	def test_fuera_del_establecimiento_no_entra(self):
+		op = crear_oportunidad(sales_model=RETAIL)
+		frappe.db.set_value("Opportunity", op.name, "establecimiento_lista", None)
+		with self.assertRaises(frappe.ValidationError):
+			api.get_oportunidad(op.name)
