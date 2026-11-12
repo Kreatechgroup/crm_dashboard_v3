@@ -48,9 +48,13 @@ custom_crm/
   custom_crm/
     crm_tableros/
       common/
-        contexto.py        # usuario → Sales Person, empleado, company, establecimiento, periodo
+        tableros.py        # ConfigTablero: establecimientos, modelos, roles de jefe, etapas, títulos
+        contexto.py        # usuario → empleado → Sales Person, company, establecimiento, jefe, periodo
+        alcance.py         # contexto + asesor elegido → datos base de toda respuesta (encabezado)
+        api.py             # whitelisted comunes: get_contexto(tablero, mes, asesor, establecimiento)
         metas.py           # lectura de Tabla de metas (reutilizable por Retail)
-        etapas.py          # configuración de etapas y probabilidades por sales_model
+        etapas.py          # etapas, requisitos y lectura de monto/fecha/próximo paso
+        eventos.py         # hooks de Opportunity y Sales Order
         formato.py         # nombres de personas, moneda, semáforos
         acciones.py        # renovar/perder cotización, lost reason, etc. (compartidas)
       proyectos/
@@ -59,7 +63,8 @@ custom_crm/
     page/
       crm_proyectos/       # crm_proyectos.json / .js / .css
     patches/               # migraciones (etapas, ToDos, establecimiento Panamá)
-    public/js/crm_tableros/common.js   # utilidades de UI compartidas
+    public/js/crm_tableros/common.js   # plantilla de UI: crm_tableros.TableroBase (encabezado, mes, tienda, "Ver:", sin acceso)
+    public/css/crm_tableros/common.css # estilos base de la plantilla (cargados con app_include_js/css)
 docs/
 ```
 
