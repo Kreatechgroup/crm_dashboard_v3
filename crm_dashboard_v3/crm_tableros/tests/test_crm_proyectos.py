@@ -9,7 +9,7 @@ from unittest.mock import patch
 import frappe
 from frappe.utils import add_days, flt, getdate, nowdate
 
-from crm_dashboard_v3.crm_tableros.common import consultas, etapas, eventos
+from crm_dashboard_v3.crm_tableros.common import consultas, etapas, eventos, flujo
 from crm_dashboard_v3.crm_tableros.common.contexto import Asesor
 from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA, CAMPO_FECHA_PROXIMO_PASO, CAMPO_PROXIMO_PASO
 from crm_dashboard_v3.crm_tableros.proyectos import api, embudo
@@ -265,6 +265,34 @@ class TestEmbudoStateV2(BaseCRMProyectos):
 		crear_actividad(op)
 		mover(op, "req")
 		self.assertEqual(op.get(CAMPO_ETAPA), "Tomar requerimiento")
+
+
+class TestWorkflowDeLaEtapa(BaseCRMProyectos):
+	"""El workflow que controla embudo_state_v2 nunca hace fallar un guardado por el hook."""
+
+	def test_lost_sin_transicion_no_rompe_el_guardado(self):
+		op = crear_oportunidad()
+		with patch.object(flujo, "bloqueo", return_value="El workflow no permite"):
+			op.status = "Lost"
+			op.lost_reason = MOTIVO_PRUEBA
+			op.save()
+		self.assertEqual(op.status, "Lost")
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("cal").valor)
+
+	def test_la_page_explica_la_transicion_que_falta(self):
+		op = crear_oportunidad()
+		with patch.object(flujo, "bloqueo", return_value="El workflow no permite pasar de A a B"):
+			with self.assertRaises(frappe.ValidationError) as error:
+				api.mover_etapa(op.name, "pausa", fecha_retomar=add_days(nowdate(), 5))
+		self.assertIn("El workflow no permite pasar de A a B", str(error.exception))
+		self.assertEqual(frappe.db.get_value("Opportunity", op.name, CAMPO_ETAPA), CFG.etapa("cal").valor)
+
+	def test_el_detalle_avisa_el_bloqueo_antes_de_mover(self):
+		op = crear_oportunidad()
+		with patch.object(flujo, "bloqueo", return_value="Falta la transición"):
+			detalle = api.get_oportunidad(op.name)
+		self.assertEqual(detalle["bloqueos"]["pausa"], "Falta la transición")
+		self.assertIn("Falta la transición", detalle["siguiente"]["faltantes"])
 
 
 class TestRetailDePlus(BaseCRMProyectos):
