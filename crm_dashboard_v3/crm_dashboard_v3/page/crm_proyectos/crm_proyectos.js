@@ -422,10 +422,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			</div>`;
 	}
 
+	// Modelo (si no es el principal), asesor (en la vista de tienda) y tipo de oportunidad.
 	quien_de(t) {
 		const partes = [];
 		if (!this.es_modelo_principal(t.modelo)) partes.push(t.modelo);
 		if (t.asesor) partes.push(this.primer_nombre(t.asesor));
+		if (t.tipo) partes.push(t.tipo);
 		return partes.join(" · ");
 	}
 
@@ -441,7 +443,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				</span>
 				<span class="crm-tarjeta-fila">
 					<span class="crm-tarjeta-monto">${t.monto > 0 ? this.e(this.dinero(t.monto)) : __("Sin monto")}</span>
-					<span class="crm-tarjeta-quien ${this.es_modelo_principal(t.modelo) ? "" : "crm-tarjeta-quien-retail"}">${this.e(this.quien_de(t))}</span>
+					<span class="crm-tarjeta-quien ${this.es_modelo_principal(t.modelo) ? "" : "crm-tarjeta-quien-retail"}"
+						title="${this.e(this.quien_de(t))}">${this.e(this.quien_de(t))}</span>
 				</span>
 				<span class="crm-tarjeta-paso ${p.estado === "ok" ? "" : "crm-tarjeta-paso-mal"}">${this.e(texto_paso)}</span>
 			</button>`;
