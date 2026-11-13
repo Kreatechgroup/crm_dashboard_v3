@@ -12,9 +12,10 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate, nowdate
 
-# La etapa vive en el campo que ya usan scripts, reportes y notificaciones del ERP.
-# Sus 17 valores se agrupan en las etapas nuevas (ConfigModelo.mapa_valores) y, al
-# mover una etapa, se escribe el valor representativo de la etapa (Etapa.valor).
+# La etapa vive en el campo de estado del workflow de Opportunity (workflow compartido,
+# ver docs/diseno_workflow_compartido.md): las demás empresas usan sus 17 valores de
+# siempre y cada tablero escribe sus etapas con su nombre real (Etapa.valor). Los
+# valores viejos se siguen leyendo con ConfigModelo.mapa_valores.
 CAMPO_ETAPA = "embudo_state_v2"
 CAMPO_FECHA_RETOMAR = "custom_fecha_retomar"
 CAMPO_PROXIMO_PASO = "custom_proximo_paso"
@@ -22,6 +23,12 @@ CAMPO_FECHA_PROXIMO_PASO = "custom_fecha_proximo_paso"
 CAMPO_PRESUPUESTO = "presupuesto_declarado_por_el_cliente"
 # Orden de venta existente vinculada a mano al cerrar como ganada (si no viene de su cotización).
 CAMPO_ORDEN_DE_VENTA = "custom_orden_de_venta"
+# Respaldo de la migración de etapas (valores anteriores, para revertir).
+CAMPO_ETAPA_ANTERIOR = "custom_embudo_state_v2_anterior"
+CAMPO_STATUS_ANTERIOR = "custom_status_anterior"
+CAMPO_PROBABILIDAD_ANTERIOR = "custom_probabilidad_anterior"
+CAMPO_MOTIVO_ANTERIOR = "custom_lost_reason_anterior"
+CAMPO_MIGRADA_EL = "custom_etapa_migrada_el"
 STATUS_CERRADOS = ("Lost", "Converted", "Closed")
 
 
@@ -33,8 +40,10 @@ class Etapa:
 	activa: bool
 	requisitos: tuple[str, ...]
 	texto_requisitos: str
-	# Valor de embudo_state_v2 que se escribe al mover a esta etapa.
+	# Valor de embudo_state_v2 (estado del workflow) que se escribe al mover a esta etapa.
 	valor: str = ""
+	# Desde esta etapa el workflow permite marcar Ganada (orden de venta creada).
+	puede_ganar: bool = False
 	status: str | None = None
 	cuenta_pronostico: bool = True
 	actualiza_monto_con_cotizacion: bool = False
@@ -46,12 +55,14 @@ class ConfigModelo:
 
 	nombre: str
 	etapas: tuple[Etapa, ...]
-	# Valor de embudo_state_v2 -> clave de la etapa a la que pertenece.
+	# Valor viejo de embudo_state_v2 -> clave de la etapa a la que pertenece.
 	mapa_valores: dict[str, str]
 	umbral_escalar: float
 	dias_verde_max: int
 	dias_amarillo_max: int
 	motivos_perdida_excluidos: tuple[str, ...]
+	# Motivo de pérdida con el que la migración cierra las «Descartada».
+	motivo_descartada: str = ""
 	# Orden de lectura del monto: el primero > 0 gana; si ninguno, la cotización más alta.
 	campos_monto: tuple[str, ...] = (CAMPO_PRESUPUESTO, "opportunity_amount")
 	campos_fecha_cierre: tuple[str, ...] = ("fecha_estimada_aprobacion", "expected_closing")
@@ -60,8 +71,18 @@ class ConfigModelo:
 		return next((e for e in self.etapas if e.clave == clave), None)
 
 	def por_valor(self, valor: str | None) -> Etapa | None:
-		"""Etapa a la que pertenece un valor de embudo_state_v2 (None si no se reconoce)."""
-		return self.etapa(self.mapa_valores.get(valor or ""))
+		"""Etapa a la que pertenece un valor de embudo_state_v2, nuevo o viejo (None si no se reconoce)."""
+		propia = next((e for e in self.etapas if e.valor == valor), None)
+		return propia or self.etapa(self.mapa_valores.get(valor or ""))
+
+	@property
+	def valores(self) -> list[str]:
+		"""Valores propios del tablero en embudo_state_v2 (sus estados del workflow)."""
+		return [e.valor for e in self.etapas]
+
+	@property
+	def inicial(self) -> Etapa:
+		return self.activas[0]
 
 	def por_status(self, status: str) -> Etapa | None:
 		return next((e for e in self.etapas if e.status == status), None)

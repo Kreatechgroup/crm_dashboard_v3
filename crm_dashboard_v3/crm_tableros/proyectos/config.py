@@ -22,7 +22,7 @@ ETAPAS = ConfigModelo(
 			activa=True,
 			requisitos=("cliente", "tipo", "origen"),
 			texto_requisitos="cliente, tipo y origen",
-			valor="Investigar al cliente",
+			valor="1 · Calificar",
 		),
 		Etapa(
 			"req",
@@ -31,7 +31,7 @@ ETAPAS = ConfigModelo(
 			activa=True,
 			requisitos=("monto", "fecha_cierre", "proximo_paso"),
 			texto_requisitos="presupuesto, fecha estimada y próximo paso",
-			valor="Tomar requerimiento",
+			valor="2 · Requerimiento y diseño",
 		),
 		Etapa(
 			"prop",
@@ -40,7 +40,8 @@ ETAPAS = ConfigModelo(
 			activa=True,
 			requisitos=("cotizacion_enviada", "fecha_cierre", "proximo_paso"),
 			texto_requisitos="cotización enviada ligada",
-			valor="Presentar cotización",
+			valor="3 · Propuesta enviada",
+			puede_ganar=True,
 			actualiza_monto_con_cotizacion=True,
 		),
 		Etapa(
@@ -50,7 +51,8 @@ ETAPAS = ConfigModelo(
 			activa=True,
 			requisitos=("monto", "fecha_cierre", "proximo_paso_vigente"),
 			texto_requisitos="próximo paso con fecha vigente",
-			valor="Negociar",
+			valor="4 · Negociación",
+			puede_ganar=True,
 		),
 		Etapa(
 			"pausa",
@@ -59,7 +61,7 @@ ETAPAS = ConfigModelo(
 			activa=False,
 			requisitos=("fecha_retomar",),
 			texto_requisitos="fecha para retomar",
-			valor="Llamar después",
+			valor="En pausa",
 			cuenta_pronostico=False,
 		),
 		Etapa(
@@ -84,7 +86,9 @@ ETAPAS = ConfigModelo(
 			cuenta_pronostico=False,
 		),
 	),
-	# Los 17 valores de embudo_state_v2 agrupados en las etapas nuevas (especificación).
+	# Valores viejos de embudo_state_v2 (workflow 2019) → etapa. Se usan para leer las
+	# oportunidades que aún no se migran y para la migración (especificación). Los valores
+	# nuevos (Etapa.valor) se reconocen solos.
 	mapa_valores={
 		"Investigar al cliente": "cal",
 		"Clasificar": "cal",
@@ -108,6 +112,7 @@ ETAPAS = ConfigModelo(
 	dias_verde_max=7,
 	dias_amarillo_max=14,
 	motivos_perdida_excluidos=("Especificar motivo",),
+	motivo_descartada="No calificó",
 )
 
 TABLERO = ConfigTablero(

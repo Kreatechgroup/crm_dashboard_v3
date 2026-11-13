@@ -259,6 +259,10 @@ after_migrate = ["crm_dashboard_v3.crm_tableros.common.campos.crear_campos"]
 doc_events = {
 	"Opportunity": {
 		"validate": "crm_dashboard_v3.crm_tableros.common.eventos.validar_oportunidad",
+		"after_insert": "crm_dashboard_v3.crm_tableros.common.eventos.estado_inicial",
+	},
+	"Quotation": {
+		"on_submit": "crm_dashboard_v3.crm_tableros.common.eventos.avanzar_con_cotizacion",
 	},
 	"Sales Order": {
 		"on_submit": "crm_dashboard_v3.crm_tableros.common.eventos.sincronizar_ganadas_desde_orden",

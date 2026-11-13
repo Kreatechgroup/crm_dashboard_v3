@@ -23,6 +23,7 @@ from crm_dashboard_v3.crm_tableros.common.etapas import (
 	texto_paso_de_actividad,
 )
 from crm_dashboard_v3.crm_tableros.common import flujo
+from crm_dashboard_v3.crm_tableros.common.eventos import FLAG_TABLERO
 from crm_dashboard_v3.crm_tableros.common.tableros import ConfigTablero, tablero_de_oportunidad
 
 
@@ -110,6 +111,8 @@ def cambiar_etapa(doc, destino: Etapa, cfg: ConfigModelo):
 		doc.opportunity_amount = monto
 		doc.set(CAMPO_PRESUPUESTO, monto)
 	doc.set(CAMPO_ETAPA, destino.valor)
+	# El hook validate no debe ignorar este cambio: ya se validó aquí.
+	doc.flags[FLAG_TABLERO] = True
 	doc.save()
 	return doc
 

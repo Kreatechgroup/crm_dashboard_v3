@@ -24,14 +24,21 @@ def _workflow_de_etapa(doctype: str):
 	return workflow if workflow.workflow_state_field == CAMPO_ETAPA else None
 
 
-def bloqueo(doc, destino: str) -> str | None:
-	"""Mensaje si el workflow no permite pasar del valor actual de la etapa a ``destino``.
+def estado_existe(valor: str, doctype: str = "Opportunity") -> bool:
+	"""True si ``valor`` es un estado del workflow activo (o si ningún workflow controla la etapa)."""
+	workflow = _workflow_de_etapa(doctype)
+	return not workflow or any(s.state == valor for s in workflow.states)
 
-	``doc`` debe tener todavía el valor actual de la etapa (el guardado en la base).
-	Devuelve None si la transición está permitida o si ningún workflow controla la etapa.
+
+def bloqueo(doc, destino: str, actual: str | None = None) -> str | None:
+	"""Mensaje si el workflow no permite pasar de ``actual`` a ``destino``.
+
+	Si no se da ``actual``, se toma el valor de la etapa que tiene ``doc`` (debe ser
+	todavía el guardado en la base). Devuelve None si la transición está permitida o
+	si ningún workflow controla la etapa.
 	"""
 	workflow = _workflow_de_etapa(doc.doctype)
-	actual = doc.get(CAMPO_ETAPA)
+	actual = doc.get(CAMPO_ETAPA) if actual is None else actual
 	if not workflow or not destino or actual == destino or doc.is_new():
 		return None
 	if not actual:
