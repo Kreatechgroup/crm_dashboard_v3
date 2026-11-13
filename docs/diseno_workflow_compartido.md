@@ -122,7 +122,7 @@ Para las de un tablero activo, el hook de nuestra app las pasa a su estado inici
 ## 5. Elementos del ERP que usan `embudo_state_v2`
 
 ### 5.1 Escriben la etapa (hay que adaptarlos para Plus en la fase 1)
-| Elemento | Qué hace hoy | Problema en Plus | Cambio propuesto |
+| Elemento | Qué hace hoy | Problema en Plus | Cambio propuesto (ver decisiones en la sección 10) |
 |---|---|---|---|
 | Client Script **Quotation-Client** | Al cotizar desde una oportunidad pone `embudo_state_v2 = "Presentar cotización"` y copia `grand_total` al presupuesto | La transición no existe para Plus → error al guardar la cotización | Llamar a `marcar_etapa(oportunidad, "cotizada")`. En Plus no mueve la etapa: la etapa 3 exige una cotización **enviada**, y eso lo hace el hook del submit (ver 6). Para las demás empresas escribe "Presentar cotización" como hoy. |
 | Client Script **Sales Order-Client** | Pone `embudo_state_v2 = "Ganada"` | Falla si la transición no existe desde la etapa actual | Llamar a `marcar_etapa(oportunidad, "ganada")`. Nuestro hook de Sales Order ya marca Ganada y Converted al enviar la orden. |
@@ -145,7 +145,7 @@ Para las de un tablero activo, el hook de nuestra app las pasa a su estado inici
 | Dashboard Chart **Monto OPTYS en negociación** | filtra "Negociar" | **No incluiría** "4 · Negociación" de Plus | Agregar "4 · Negociación" al filtro |
 | 5 reportes (CS: Oportunidades perdidas, Oportunidad por Vendedor, Pendientes de cotizar, Sin asesor asignado, Seguimiento de cierre) | Ganada, Perdida, Descartada | Funcionan igual | Ninguno |
 | Report "Oportunidades Alex Marroquin(Eliminar)" | — | — | Desactivar (está marcado para eliminar) |
-| Client Scripts **CRM Dashboard V2** y **CRM Dashboard** | los 17 valores (kanban viejo) | Las oportunidades de Plus no se verían bien | Retirar el V2 para Plus el mismo día (la especificación ya lo indica) |
+| Client Scripts **CRM Dashboard V2** y **CRM Dashboard** | los 17 valores (kanban viejo) | Las oportunidades de Plus con etapas nuevas no se verán bien | **Se deja sin tocar** (decisión 2026-11-13) |
 
 ### 5.3 Código de otras apps (servidor de pruebas)
 Ver la sección 9.
@@ -217,11 +217,11 @@ Resultado del `grep` en el servidor de pruebas (`/home/creative/frappe-bench/app
 
 _pendiente: se completa con el resultado de la búsqueda._
 
-## 10. Decisiones pendientes
+## 10. Decisiones (respuestas del 2026-11-13)
 
-1. **Abrir oportunidades de Plus en "1 · Calificar":** confirmar que se haga al crearlas (sección 4).
-2. **Cotización enviada → "3 · Propuesta enviada":** ¿se mueve sola? (sección 6).
-3. **Reglas para las 94 incoherentes de Plus** (sección 7) y **crear el motivo "No calificó"** en `Lost Reason`.
-4. **Botón "Descartar" en Plus:** ¿se oculta o se convierte en "Dar por perdida"?
-5. **Rol de las transiciones nuevas:** ¿solo "Embudo de ventas", o también "Jefe de Plus"?
-6. **Retirar el CRM Dashboard V2 para Plus** el día que entre el workflow.
+1. **Oportunidades nuevas de Plus → "1 · Calificar".** ✅ Confirmado.
+2. **Cotización → "3 · Propuesta enviada".** El negocio pidió que fuera *al crear* la cotización. La especificación exige una cotización **enviada (submit)**, y se recomendó hacerlo **al enviar**. ⏳ Pendiente de confirmar.
+3. **Reglas para las 94 incoherentes de Plus.** Se explicaron. ⏸️ **No se hace nada por ahora.**
+4. **Botón "Descartar".** Es el Custom Field `descartar` (Button) del formulario de Opportunity, después de "Rated On", pintado en rojo por *Opportunity-Client*. Opciones: ocultarlo solo para Plus (recomendada) o que en Plus haga "Dar por perdida". ⏳ Pendiente de elegir.
+5. **Rol de las transiciones nuevas: "Embudo de ventas".** Los asesores de Plus, Aura (Jefe de Plus) y Antonio Camargo ya lo tienen. ✅
+6. **CRM Dashboard V2.** ✅ Se queda como está, sin tocarlo. Su kanban no mostrará bien las etapas nuevas de Plus.
