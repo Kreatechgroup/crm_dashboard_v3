@@ -13,7 +13,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, get_first_day, get_last_day, getdate, nowdate
 
-from crm_dashboard_v3.crm_tableros.common import acciones
+from crm_dashboard_v3.crm_tableros.common import acciones, flujo
 from crm_dashboard_v3.crm_tableros.common.campos import crear_campos
 from crm_dashboard_v3.crm_tableros.common.contexto import Contexto
 from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA
@@ -77,7 +77,6 @@ def crear_oportunidad(sales_model=PROYECTOS, **campos):
 			"tipo_de_oportunidad": _tipo_de_oportunidad(),
 			"source": ORIGEN_PRUEBA,
 			"transaction_date": nowdate(),
-			CAMPO_ETAPA: CFG.etapa("cal").valor,
 			**campos,
 		}
 	)
@@ -108,6 +107,13 @@ def crear_cotizacion(oportunidad, valid_till, transaction_date=None, monto=10000
 	q.insert()
 	q.submit()
 	return q
+
+
+def poner_en(oportunidad, clave):
+	"""Deja la oportunidad en una etapa sin pasar por el workflow (solo para preparar pruebas)."""
+	frappe.db.set_value("Opportunity", oportunidad.name, CAMPO_ETAPA, CFG.etapa(clave).valor)
+	oportunidad.reload()
+	return oportunidad
 
 
 def mover(oportunidad, clave, **extra):
@@ -142,6 +148,15 @@ class BaseCRMProyectos(FrappeTestCase):
 			asegurar("Lost Reason", motivo, lost_reason_name=motivo)
 			asegurar("Quotation Lost Reason", motivo, order_lost_reason=motivo)
 		PRUEBA["establecimiento"] = _establecimiento_de_prueba()
+		# Las pruebas mueven etapas a través del workflow compartido real del sitio.
+		if not flujo.estado_existe(CFG.inicial.valor):
+			raise unittest.SkipTest(
+				"El workflow activo no tiene las etapas nuevas: ejecuta migracion.workflow.instalar() en el sitio de pruebas."
+			)
+		if PRUEBA["establecimiento"] not in TABLERO.establecimientos:
+			raise unittest.SkipTest(
+				f"El sitio de pruebas no tiene el establecimiento {TABLERO.establecimientos[0]!r} que usa el workflow."
+			)
 		PRUEBA["tablero"] = dataclasses.replace(TABLERO, establecimientos=(PRUEBA["establecimiento"],))
 		cls._parches = [
 			patch("crm_dashboard_v3.crm_tableros.common.tableros.todos", return_value=[PRUEBA["tablero"]]),

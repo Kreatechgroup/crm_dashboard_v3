@@ -9,6 +9,7 @@ from unittest.mock import patch
 import frappe
 from frappe.utils import add_days, flt, getdate, nowdate
 
+from crm_dashboard_v3.crm_tableros.common import api as api_comun
 from crm_dashboard_v3.crm_tableros.common import consultas, etapas, eventos, flujo
 from crm_dashboard_v3.crm_tableros.common.contexto import Asesor
 from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA, CAMPO_FECHA_PROXIMO_PASO, CAMPO_PROXIMO_PASO
@@ -23,6 +24,7 @@ from crm_dashboard_v3.crm_tableros.tests.utilidades import (
 	crear_cotizacion,
 	crear_oportunidad,
 	mover,
+	poner_en,
 )
 
 
@@ -205,7 +207,7 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		self.assertNotEqual(frappe.db.get_value("Opportunity", op.name, "status"), "Converted")
 
 	def test_ganada_pone_status_converted(self):
-		op = crear_oportunidad()
+		op = poner_en(crear_oportunidad(), "neg")  # Ganada solo se permite desde Propuesta o Negociación
 		siempre = ("orden de venta creada", lambda d, r, c: True)
 		with patch.dict(etapas.REQUISITOS, {"orden_de_venta": siempre}):
 			mover(op, "ganada")
@@ -246,8 +248,8 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		self.assertEqual(frappe.db.get_value("Opportunity", op.name, "status"), "Open")
 
 
-class TestEmbudoStateV2(BaseCRMProyectos):
-	"""La etapa vive en embudo_state_v2: los scripts existentes del ERP siguen funcionando."""
+class TestWorkflowCompartido(BaseCRMProyectos):
+	"""Etapas con nombre real en embudo_state_v2 y scripts viejos que no rompen nada."""
 
 	def _guardar_con(self, op, valor):
 		op.reload()
@@ -255,33 +257,65 @@ class TestEmbudoStateV2(BaseCRMProyectos):
 		op.save()
 		return op
 
-	def test_script_que_escribe_un_valor_viejo_no_se_bloquea(self):
-		# Como el Client Script de Quotation: pone «Presentar cotización» sin cotización enviada.
-		op = self._guardar_con(crear_oportunidad(), "Presentar cotización")
-		self.assertEqual(op.get(CAMPO_ETAPA), "Presentar cotización")
-		self.assertEqual(flt(op.probability), 50)
-
-	def test_cualquier_valor_de_la_etapa_da_su_probabilidad(self):
+	def test_la_oportunidad_nueva_empieza_en_calificar(self):
 		op = crear_oportunidad()
-		for valor, probabilidad in (("Crear el diseño", 25), ("Dar seguimiento", 75), ("Conocer", 10)):
-			self._guardar_con(op, valor)
-			self.assertEqual(flt(op.probability), probabilidad, valor)
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.inicial.valor)
+		self.assertEqual(frappe.db.get_value("Opportunity", op.name, CAMPO_ETAPA), "1 · Calificar")
+		self.assertEqual(flt(op.probability), 10)
 
-	def test_ganada_escrita_por_un_script_pone_converted(self):
-		# Como el Client Script de Sales Order.
+	def test_script_con_valor_viejo_se_ignora_sin_error(self):
+		# Como Quotation-Client o Integración de costos: escriben «Presentar cotización».
+		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=4000)
+		op = self._guardar_con(op, "Presentar cotización")
+		self.assertEqual(op.get(CAMPO_ETAPA), "1 · Calificar")
+		# Lo demás que guarda el script sí se conserva.
+		self.assertEqual(flt(op.presupuesto_declarado_por_el_cliente), 4000)
+
+	def test_ganada_escrita_por_un_script_desde_calificar_se_ignora(self):
+		# Como Sales Order-Client: desde Calificar el workflow no permite Ganada.
 		op = self._guardar_con(crear_oportunidad(), "Ganada")
-		self.assertEqual(op.status, "Converted")
+		self.assertEqual(op.get(CAMPO_ETAPA), "1 · Calificar")
+		self.assertNotEqual(op.status, "Converted")
 
-	def test_descartada_no_cambia_el_status(self):
-		# Descartada queda pendiente de la migración (Perdida con motivo «No calificó»).
-		op = self._guardar_con(crear_oportunidad(), "Descartada")
-		self.assertEqual(op.status, "Open")
-
-	def test_el_tablero_escribe_el_valor_representativo(self):
+	def test_el_tablero_escribe_el_nombre_real_de_la_etapa(self):
 		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=5000, fecha_estimada_aprobacion=nowdate())
 		crear_actividad(op)
 		mover(op, "req")
-		self.assertEqual(op.get(CAMPO_ETAPA), "Tomar requerimiento")
+		self.assertEqual(op.get(CAMPO_ETAPA), "2 · Requerimiento y diseño")
+		self.assertEqual(flt(op.probability), 25)
+
+	def test_cotizacion_enviada_pasa_a_propuesta_enviada(self):
+		op = crear_oportunidad(
+			presupuesto_declarado_por_el_cliente=5000,
+			fecha_estimada_aprobacion=add_days(nowdate(), 20),
+			**{CAMPO_PROXIMO_PASO: "Presentar propuesta", CAMPO_FECHA_PROXIMO_PASO: add_days(nowdate(), 2)},
+		)
+		crear_cotizacion(op, valid_till=add_days(nowdate(), 15), monto=8000)
+		op.reload()
+		self.assertEqual(op.get(CAMPO_ETAPA), "3 · Propuesta enviada")
+		self.assertEqual(flt(op.probability), 50)
+
+	def test_cotizacion_enviada_sin_requisitos_no_mueve_ni_bloquea(self):
+		op = crear_oportunidad()  # sin fecha estimada ni próximo paso
+		q = crear_cotizacion(op, valid_till=add_days(nowdate(), 15))
+		self.assertEqual(q.docstatus, 1)
+		op.reload()
+		self.assertEqual(op.get(CAMPO_ETAPA), "1 · Calificar")
+
+	def test_descartar_en_plus_pide_motivo_y_da_por_perdida(self):
+		op = crear_oportunidad()
+		regla = api_comun.como_descartar(op.name)
+		self.assertTrue(regla["pedir_motivo"])
+		self.assertIn(MOTIVO_PRUEBA, regla["motivos"])
+		api_comun.descartar_oportunidad(op.name, MOTIVO_PRUEBA)
+		op.reload()
+		self.assertEqual(op.get(CAMPO_ETAPA), "Perdida")
+		self.assertEqual(op.status, "Lost")
+
+	def test_descartar_sin_motivo_valido_no_procede(self):
+		op = crear_oportunidad()
+		with self.assertRaises(frappe.ValidationError):
+			api_comun.descartar_oportunidad(op.name, "Especificar motivo")
 
 
 class TestWorkflowDeLaEtapa(BaseCRMProyectos):
