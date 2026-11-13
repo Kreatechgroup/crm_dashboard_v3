@@ -233,3 +233,36 @@ Ninguna otra app propia usa `embudo_state_v2`.
 4. **Botón "Descartar".** Es el Custom Field `descartar` (Button) del formulario de Opportunity, después de "Rated On", pintado en rojo por *Opportunity-Client*. Opciones: ocultarlo solo para Plus (recomendada) o que en Plus haga "Dar por perdida". ⏳ Pendiente de elegir.
 5. **Rol de las transiciones nuevas: "Embudo de ventas".** Los asesores de Plus, Aura (Jefe de Plus) y Antonio Camargo ya lo tienen. ✅
 6. **CRM Dashboard V2.** ✅ Se queda como está, sin tocarlo. Su kanban no mostrará bien las etapas nuevas de Plus.
+
+## 11. Implementación de la fase 1 (2026-11-13)
+
+**Cambio respecto a la sección 5:** en lugar del método `marcar_etapa`, el hook `validate` **ignora** en las oportunidades de un tablero cualquier cambio de etapa que el workflow no permita y que no venga del tablero. Así:
+- **Sin cambios en otros sistemas:** no hay que tocar **Quotation-Client**, **Sales Order-Client** ni la app **Integración de costos**.
+- **Lo demás se guarda:** cuando un script escribe un valor viejo en una oportunidad de Plus, se ignora solo la etapa; el resto de lo que guarda (por ejemplo el presupuesto) sí se conserva.
+- **El cambio real de etapa** lo hacen los hooks:
+  - **Cotización enviada:** la oportunidad pasa a "3 · Propuesta enviada".
+  - **Orden de venta enviada:** la oportunidad pasa a Ganada.
+
+**Solo dos cambios de configuración del ERP** (módulo `migracion/scripts_erp.py`, con respaldo):
+- **Botón "Descartar"** (Opportunity-Client): igual para las demás empresas; en Plus pide un motivo y da la oportunidad por perdida.
+- **Gráfica "Monto OPTYS en negociación":** el filtro también incluye "4 · Negociación".
+
+**Código:**
+| Archivo | Qué hace |
+|---|---|
+| `crm_tableros/migracion/workflow.py` | `simular`, `instalar` y `revertir` del workflow «Embudo de ventas 2026». El de 2019 queda intacto y desactivado. |
+| `crm_tableros/migracion/etapas_plus.py` | `simular`, `ejecutar(confirmar=True)` y `revertir(confirmar=True)` de la migración de las abiertas de Plus, con respaldo en `custom_*_anterior`. |
+| `crm_tableros/migracion/scripts_erp.py` | `simular`, `aplicar` y `revertir` de los dos cambios de configuración; los originales se guardan como archivos privados. |
+| `common/eventos.py` | Ignora los valores viejos, pone la etapa inicial al crear la oportunidad y avanza con la cotización enviada. |
+| `common/api.py` | `como_descartar` y `descartar_oportunidad`, que usa el botón. |
+
+**Orden para aplicarlo** (en cada sitio, a mano):
+```bash
+bench --site <sitio> migrate                                   # crea los campos de respaldo
+bench --site <sitio> execute crm_dashboard_v3.crm_tableros.migracion.workflow.simular
+bench --site <sitio> execute crm_dashboard_v3.crm_tableros.migracion.workflow.instalar
+bench --site <sitio> execute crm_dashboard_v3.crm_tableros.migracion.scripts_erp.simular
+bench --site <sitio> execute crm_dashboard_v3.crm_tableros.migracion.scripts_erp.aplicar
+bench --site <sitio> execute crm_dashboard_v3.crm_tableros.migracion.etapas_plus.simular
+bench --site <sitio> execute crm_dashboard_v3.crm_tableros.migracion.etapas_plus.ejecutar --kwargs "{'confirmar': True}"
+```
