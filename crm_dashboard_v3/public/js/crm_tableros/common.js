@@ -85,9 +85,9 @@ crm_tableros.TableroBase = class TableroBase {
 
 	// Pastilla de estado: siempre color + texto (Verde / Amarillo / Rojo).
 	tag(sem, texto, chica) {
-		return `<span class="crm-tag crm-tag-${this.e(sem.clave)} ${chica ? "crm-tag-sm" : ""}">${this.e(texto)}<span class="crm-sr"> · ${this.e(
-			sem.texto
-		)}</span></span>`;
+		const color = sem.color || sem.texto;
+		const extra = color && color !== texto ? `<span class="crm-sr"> · ${this.e(color)}</span>` : "";
+		return `<span class="crm-tag crm-tag-${this.e(sem.clave)} ${chica ? "crm-tag-sm" : ""}">${this.e(texto)}${extra}</span>`;
 	}
 
 	html_cargando() {

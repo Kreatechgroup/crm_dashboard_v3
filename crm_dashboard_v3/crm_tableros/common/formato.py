@@ -47,19 +47,24 @@ def semaforo_dias(dias: int, verde_max: int, amarillo_max: int) -> dict:
 	return semaforo("rojo")
 
 
+def estado(clave: str, texto: str) -> dict:
+	"""Semáforo con un mensaje propio; el color sigue en ``color`` (Verde / Amarillo / Rojo)."""
+	return {"clave": clave, "color": SEMAFORO[clave], "texto": texto}
+
+
 def ritmo(facturado: float, meta: float, fraccion_del_mes: float) -> dict:
-	"""Estado de avance contra la meta, comparado con el ritmo esperado a la fecha."""
+	"""Estado de avance contra la meta, comparado con el ritmo esperado a la fecha (como el mockup)."""
 	avance = facturado / meta if meta > 0 else 0
 	pct = round(avance * 100)
 	if meta <= 0:
-		return {"texto": _("Sin meta registrada"), **semaforo("amarillo")}
+		return estado("amarillo", _("Sin meta registrada"))
 	if avance >= 1:
-		return {"texto": _("Llegó a meta"), **semaforo("verde")}
+		return estado("verde", _("Llegó a meta"))
 	if avance >= fraccion_del_mes:
-		return {"texto": _("En ritmo · {0}% de cumplimiento").format(pct), **semaforo("verde")}
+		return estado("verde", _("En ritmo · {0}% de cumplimiento").format(pct))
 	if avance >= fraccion_del_mes * 0.8:
-		return {"texto": _("Atención · {0}% de cumplimiento").format(pct), **semaforo("amarillo")}
-	return {"texto": _("No ha llegado a la meta · {0}% de cumplimiento").format(pct), **semaforo("rojo")}
+		return estado("amarillo", _("Atención · {0}% de cumplimiento").format(pct))
+	return estado("rojo", _("No ha llegado a la meta · {0}% de cumplimiento").format(pct))
 
 
 def nombres_de_usuarios(usuarios: list[str]) -> dict[str, str]:

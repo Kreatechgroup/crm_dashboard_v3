@@ -207,6 +207,10 @@ class TestMontosYFormato(FrappeTestCase):
 		self.assertEqual(formato.ritmo(50, 100, 0.5)["clave"], "verde")
 		self.assertEqual(formato.ritmo(42, 100, 0.5)["clave"], "amarillo")
 		self.assertEqual(formato.ritmo(10, 100, 0.5)["clave"], "rojo")
+		# El mensaje es el del mockup, no el nombre del color.
+		self.assertEqual(formato.ritmo(100, 100, 0.5)["texto"], "Llegó a meta")
+		self.assertTrue(formato.ritmo(10, 100, 0.5)["texto"].startswith("No ha llegado a la meta"))
+		self.assertEqual(formato.ritmo(10, 100, 0.5)["color"], "Rojo")
 
 	def test_fraccion_del_mes(self):
 		ctx = Contexto("u", "n", date(2026, 10, 1), date(2026, 10, 31), date(2026, 10, 31))
