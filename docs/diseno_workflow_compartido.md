@@ -131,6 +131,7 @@ Para las de un tablero activo, el hook de nuestra app las pasa a su estado inici
 | Server Script **Cambio de estado IDC** | Si la oportunidad está en "Investigar al cliente", la pasa a "Presentar cotización" | Sin efecto en Plus, por la misma razón | Ninguno. |
 | Client Script **Customer-Client** | Pasa oportunidades en "Investigar al cliente" o "Clasificar" a "Presentar empresa" o "Descartada" | Sin efecto en Plus: filtra por valores viejos | Ninguno. |
 | Client Script **Integracion de costos-Client** | El código que escribía la etapa está **comentado** | — | Ninguno. |
+| App **integracion_de_costos**, `updOptyCotizada` (al enviar) | Pone "Presentar cotización" | La transición no existe en Plus → error | `marcar_etapa(…, "cotizada")` (ver sección 9) |
 
 `marcar_etapa(oportunidad, evento)` sería un método de nuestra app. Decide el valor según la tienda: valor viejo para las demás empresas y valor nuevo para los tableros. Los Client Scripts los modifica el responsable del ERP.
 
@@ -215,7 +216,14 @@ Solo referencia. Abiertas Retail a hoy:
 
 Resultado del `grep` en el servidor de pruebas (`/home/creative/frappe-bench/apps`, sin incluir `crm_dashboard_v3`):
 
-_pendiente: se completa con el resultado de la búsqueda._
+Búsqueda en las apps propias, sin frappe, erpnext, hrms ni helpdesk (2026-11-13):
+
+| App · archivo | Qué hace | Afecta a Plus | Cambio |
+|---|---|---|---|
+| `integracion_de_costos…/doctype/integracion_de_costos/integracion_de_costos.js`, función `updOptyCotizada` | Al **enviar (submit)** una Integración de costos, pone en la oportunidad `embudo_state_v2 = "Presentar cotización"`, `embudo_state = "Cotizada"` y el presupuesto | **Sí:** en Plus esa transición no existe y el usuario vería un error del workflow después de enviar | En esa app, llamar a `marcar_etapa(oportunidad, "cotizada")` en lugar de escribir el valor. Para las demás empresas el resultado es el mismo de hoy. |
+| `custom_crm/doctype/crm_dashboard_v2/crm_dashboard_v2.js` | Varias líneas que leen o escriben `embudo_state_v2` | No: **todas están comentadas** | Ninguno |
+
+Ninguna otra app propia usa `embudo_state_v2`.
 
 ## 10. Decisiones (respuestas del 2026-11-13)
 
