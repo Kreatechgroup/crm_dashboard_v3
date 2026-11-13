@@ -6,7 +6,7 @@ Habrá dos tableros:
 | Tablero | A quién atiende | Estado |
 |---|---|---|
 | **Tablero 2 · CRM Proyectos** | Asesores de **Plus** (Plus Fontabella Importado). Junta sus **dos Sales Person**: el de Proyectos ("Asesor de Proyectos Retail X - UM") y el de Retail ("Asesor Retail X - UM"); `sales_model` Proyectos **y** Retail | **En construcción ahora** |
-| Tablero 1 · CRM Retail | Asesores de **Abito** (Abito GT y Abito PA), `sales_model = "Retail"` | Fase siguiente. **No implementar todavía.** |
+| Tablero 1 · CRM Retail | Asesores de **Abito**: Abito GT = establecimiento **"Abito Fontabella"** (Umob) y Abito PA = establecimiento **"Grupo Creative"** (Grupo Creative, S.A. / Panamá, *Abito Dream Plaza*); `sales_model = "Retail"`. Los demás establecimientos Abito quedan fuera. | Fase siguiente. **No implementar todavía.** |
 
 **Vistas por persona** (aclarado por el negocio el 2026-11-12):
 - Cada asesor ve **solo su información**.
@@ -104,14 +104,14 @@ Ajusta los nombres si el repositorio ya tiene otra convención; respeta la exist
 | Perdida | 0% | `Lost Reason` obligatorio; `status = Lost` |
 | En pausa | — | Fecha para retomar; no cuenta en el pronóstico |
 
-- **La etapa vive en `embudo_state_v2`** (decisión 2026-11-12): hay Server/Client Scripts, reportes, notificaciones y gráficas que leen y escriben sus 17 valores, así que no se cambian sus opciones. El tablero agrupa los 17 valores en las etapas nuevas (`mapa_valores` en la config) y, al mover una tarjeta, escribe el valor representativo de la etapa destino (`Etapa.valor`: Investigar al cliente, Tomar requerimiento, Presentar cotización, Negociar, Llamar después, Ganada, Perdida).
+- **La etapa vive en `embudo_state_v2` con un workflow compartido** (decisión 2026-11-13; diseño en `docs/diseno_workflow_compartido.md`): el workflow de Opportunity conserva los 17 estados y 48 transiciones actuales para las demás empresas, condicionadas a "no es de un tablero activo", y agrega los **estados nuevos con sus nombres reales** (1 · Calificar … 4 · Negociación, En pausa; Ganada y Perdida se comparten) con transiciones condicionadas a Plus Fontabella Importado. Abito (fase Retail) tendrá Cotizada / Seguimiento. Las condiciones se generan desde `ConfigTablero`. Las oportunidades abiertas de Plus se migran a los nombres nuevos (fase 1, con simulación, respaldo y confirmación). *Implementación actual (aún no migrada)*: la page agrupa los 17 valores (`mapa_valores`) y escribe un valor representativo (`Etapa.valor`); se reemplaza en la fase 1.
 - `Opportunity.probability` se fija sola según la etapa (server-side, en un hook `validate`, en todo guardado); el usuario no la edita. Los requisitos por etapa se validan en el servidor al mover desde el tablero (`acciones.cambiar_etapa`), no en `validate`, para no bloquear los scripts existentes que escriben `embudo_state_v2`.
 - Campos nuevos en Opportunity: `custom_proximo_paso` (Data) y `custom_fecha_proximo_paso` (Date). Créalos como **fixtures / Custom Field en código**, no a mano.
 - Etapa y status siempre coherentes: Ganada ↔ Converted, Perdida ↔ Lost.
 - No permitir el texto genérico "Especificar motivo" como razón de pérdida.
 - La validación de campos obligatorios por etapa vive en **servidor** (la UI solo muestra qué falta y no mueve la tarjeta).
 
-**Migración** (patch idempotente) — **pospuesta por decisión del negocio (2026-11-12)**. Con la etapa en `embudo_state_v2` no hay que reescribir valores; quedaría corregir la probabilidad guardada y las incoherencias etapa/status. Equivalencias que usa el tablero:
+**Migración** (patch idempotente) — **fase 1 del workflow compartido** (2026-11-13): solo oportunidades **abiertas** de Plus, escritura directa sin disparar scripts/notificaciones, respaldo en campos propios, modo simulación y reversa. Equivalencias:
 - Investigar al cliente, Clasificar, Presentar empresa, Conocer → 1 · Calificar
 - Tomar requerimiento, Definir la solución, Presentar solución, Crear el diseño, Presentar diseño → 2 · Requerimiento y diseño
 - Crear la cotización, Presentar cotización → 3 · Propuesta enviada
