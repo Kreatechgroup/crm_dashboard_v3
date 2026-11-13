@@ -1164,8 +1164,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		if (!c || c.mensaje) return "";
 		const modos = [["", this.texto_modelos()]].concat(c.modelos.map((m) => [m, __("Solo {0}", [m])]));
 		const nota = c.vista_tienda
-			? `<strong>${__("Resumen de la tienda.")}</strong> ${__(
-					"Toca «Ver como lo ve…» en la tarjeta de un asesor para abrir su consolidado tal como él lo ve, con sus documentos y el cálculo factura por factura."
+			? `<strong>${__("Toda la tienda")}</strong> ${__(
+					"suma a todos los asesores: toca un monto subrayado para ver sus documentos (cada uno dice de qué asesor es). Debajo, el resumen de cada asesor; «Ver como lo ve…» abre su consolidado tal como él lo ve. Montos sin IVA."
 			  )}`
 			: `<strong>${__("Toca un monto subrayado")}</strong> ${__(
 					"para ver sus documentos vinculados. Facturado = facturas del mes atribuidas por la tabla Comisiones Asesor de su orden de venta (o creadas por el asesor sin orden), no por el Sales Team. Montos sin IVA."
@@ -1187,8 +1187,18 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					.join("")}</div>
 			</div>
 			<p class="crm-nota">${nota}</p>
-			<div class="crm-cons-tarjetas">${c.tarjetas.map((t, i) => this.html_tarjeta_cons(t, i)).join("")}</div>
-			${this.estado.det ? this.html_documentos() : ""}`;
+			${c.vista_tienda ? this.html_cons_tienda() : `<div class="crm-cons-tarjetas">${c.tarjetas.map((t, i) => this.html_tarjeta_cons(t, i)).join("")}</div>
+			${this.estado.det ? this.html_documentos() : ""}`}`;
+	}
+
+	// Vista de tienda: la tarjeta completa de la tienda (con sus documentos) y debajo el resumen de cada asesor.
+	html_cons_tienda() {
+		const [tienda, ...asesores] = this.consolidado.tarjetas;
+		return `
+			<div class="crm-cons-tarjetas crm-cons-tarjetas-una">${this.html_tarjeta_cons(tienda, 0)}</div>
+			${this.estado.det ? this.html_documentos() : ""}
+			<h3 class="crm-cons-subtit">${__("Resumen por asesor")}</h3>
+			<div class="crm-cons-tarjetas">${asesores.map((t, i) => this.html_tarjeta_cons(t, i + 1)).join("")}</div>`;
 	}
 
 	subtitulo_mes() {
@@ -1285,6 +1295,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const filas_todas = t.comision.filas;
 		let detalle = "";
 		if (t.detalle) {
+			const con_asesor = t.es_tienda;
+			const columnas = con_asesor ? 12 : 11;
 			const grupos = (this.estado.modo_cons ? [this.estado.modo_cons] : this.consolidado.modelos)
 				.map((m) => {
 					const lista = filas_todas.filter((f) => f.modelo === m);
@@ -1292,7 +1304,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					const fut = lista.reduce((s, f) => s + f.futura, 0);
 					const clase = this.es_modelo_principal(m) ? "crm-grupo-proyectos" : "crm-grupo-retail";
 					return `
-						<tr class="${clase}"><td colspan="11"><strong>${this.e(m)}</strong> <span class="crm-sub">· ${this.e(
+						<tr class="${clase}"><td colspan="${columnas}"><strong>${this.e(m)}</strong> <span class="crm-sub">· ${this.e(
 						__("{0} facturas · comisión {1} · comisión futura {2}", [lista.length, this.dinero(com), this.dinero(fut)])
 					)}</span></td></tr>
 						${
@@ -1303,6 +1315,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						<tr>
 							<td class="crm-izq"><a class="crm-mono" href="/app/sales-invoice/${encodeURIComponent(f.factura)}"><strong>${this.e(f.factura)}</strong></a>
 								<span class="crm-formula">${this.e(this.fecha(f.fecha))}${f.nota_de_credito ? " · " + __("nota de crédito") : ""}${f.propia ? " · " + __("sin orden") : ""}</span></td>
+							${con_asesor ? `<td class="crm-izq">${this.e(f.asesor)}</td>` : ""}
 							<td class="crm-izq">${this.e(f.cliente)}</td>
 							<td>${this.e(this.dinero(f.neto))}</td><td>${this.e(this.dinero(f.gran_total))}</td><td>${this.e(this.dinero(f.saldo))}</td>
 							<td>${this.e(this.dinero(f.cobrado))}</td><td>${this.e(f.distribucion)}%</td><td>${this.e(f.tasa)}%</td>
@@ -1313,7 +1326,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						</tr>`
 										)
 										.join("")
-								: `<tr><td colspan="11" class="crm-izq crm-sub">${this.e(__("Sin facturas de {0}.", [m]))}</td></tr>`
+								: `<tr><td colspan="${columnas}" class="crm-izq crm-sub">${this.e(__("Sin facturas de {0}.", [m]))}</td></tr>`
 						}`;
 				})
 				.join("");
@@ -1326,7 +1339,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					abierta
 						? `<div class="crm-scroll" style="margin-top:8px"><table class="crm-tabla crm-tabla-facturas">
 							<thead><tr>
-								<th class="crm-izq">${__("Factura")}</th><th class="crm-izq">${__("Cliente")}</th><th>net_total</th><th>grand_total</th><th>outstanding</th>
+								<th class="crm-izq">${__("Factura")}</th>${con_asesor ? `<th class="crm-izq">${__("Asesor")}</th>` : ""}<th class="crm-izq">${__("Cliente")}</th><th>net_total</th><th>grand_total</th><th>outstanding</th>
 								<th>${__("Pagado")}</th><th>${__("Distribución")}</th><th>${__("Tasa")}</th><th>${__("Comisión")}</th><th>${__("Por cobrar")}</th><th>${__("Comisión futura")}</th>
 							</tr></thead>
 							<tbody>${grupos}</tbody></table></div>`
@@ -1411,11 +1424,13 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					? __("Sin orden de venta: la creó el asesor")
 					: __("Orden de venta {0}", [x.modelo]) + (x.distribucion !== 100 ? " · " + __("{0}% de distribución", [x.distribucion]) : "");
 				if (!x.oportunidad) nota += " · " + __("sin oportunidad");
+				if (t.es_tienda) nota = x.asesor + " · " + nota;
 			} else if (det.tipo === "ordenes") {
 				enlaces = chip(x.oportunidad, "op") + chip(x.cotizacion, "qt") + x.facturas.map((f) => chip(f, "inv")).join("");
 				estado = x.facturado >= 100 ? __("Facturada 100%") : x.facturado > 0 ? __("Facturada {0}%", [Math.round(x.facturado)]) : __("Sin facturar");
 				tono = x.facturado >= 100 ? "verde" : "amarillo";
 				nota = x.oportunidad ? "" : __("Sin oportunidad ni cotización ligada");
+				if (t.es_tienda) nota = [x.asesor + (x.distribucion !== 100 ? " · " + __("{0}% de distribución", [x.distribucion]) : ""), nota].filter(Boolean).join(" · ");
 			} else {
 				enlaces = chip(x.oportunidad, "op");
 				estado = estados_cot[x.status] || x.status;

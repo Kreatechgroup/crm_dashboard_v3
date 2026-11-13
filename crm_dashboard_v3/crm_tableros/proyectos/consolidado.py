@@ -17,7 +17,8 @@ TOTAL = "Total"
 
 
 def construir(t, ctx, asesores: list, vista_tienda: bool) -> dict:
-	"""``vista_tienda``: jefe sin asesor elegido → tarjeta de la tienda y tarjetas compactas."""
+	"""``vista_tienda``: jefe sin asesor elegido → tarjeta completa de la tienda (como la de
+	un asesor, con los datos de todos) y debajo las tarjetas resumen de cada asesor."""
 	modelos = list(t.sales_models)
 	inicio_hist = get_first_day(add_months(ctx.desde, -(t.meses_historico - 1)))
 	meses = [add_months(inicio_hist, i) for i in range(t.meses_historico)]
@@ -25,7 +26,7 @@ def construir(t, ctx, asesores: list, vista_tienda: bool) -> dict:
 
 	tarjetas = []
 	if vista_tienda:
-		tarjetas.append(_tarjeta(_("Toda la tienda"), None, list(datos.values()), modelos, meses, ctx, detalle=False))
+		tarjetas.append(_tarjeta(_("Toda la tienda"), None, list(datos.values()), modelos, meses, ctx, detalle=True))
 	for a in asesores:
 		tarjetas.append(
 			_tarjeta(a.nombre, a.empleado, [datos[a.usuario]], modelos, meses, ctx, detalle=not vista_tienda)
@@ -41,6 +42,9 @@ def _datos_asesor(a, t, ctx, inicio_hist) -> dict:
 	for o in ordenes:
 		o.modelo = o.sales_model_1 or sps.get(o.asesor) or t.modelo_por_defecto
 		o.monto = flt(o.base_net_total) * flt(o.distribucion) / 100
+	# En la tarjeta de la tienda cada documento dice de qué asesor es su parte.
+	for fila in (*filas_hist, *ordenes):
+		fila.asesor_nombre = a.nombre
 	return {
 		"meta": metas.meta_por_modelo(sps, t.tipo_meta, ctx.desde, ctx.hasta, ctx.company),
 		"facturas": [f for f in filas_hist if ctx.desde <= f.fecha <= ctx.hasta],
@@ -115,7 +119,7 @@ def _tarjeta(nombre, empleado, datos: list[dict], modelos, meses, ctx, detalle: 
 		],
 	}
 	# La operación de comisión se ve en todas las tarjetas; el detalle por factura
-	# y los documentos vinculados solo en la vista de un asesor.
+	# y los documentos vinculados, en la del asesor elegido y en la de la tienda.
 	tarjeta["comision"] = _comision(junta["facturas"], modelos, con_filas=detalle)
 	tarjeta["detalle"] = detalle
 	if detalle:
@@ -128,7 +132,8 @@ def _comision(facturas, modelos, con_filas: bool) -> dict:
 	for modelo in modelos + [TOTAL]:
 		lista = facturas if modelo == TOTAL else [f for f in facturas if f.modelo == modelo]
 		resumen[modelo] = {
-			"cantidad": len(lista),
+			# Una factura repartida entre dos asesores es una sola factura.
+			"cantidad": len({f.name for f in lista}),
 			"atribuido": _suma(lista),
 			"cobrado": sum(f.cobrado * f.distribucion / 100 for f in lista),
 			"tasas": sorted({f.tasa for f in lista}),
@@ -141,6 +146,7 @@ def _comision(facturas, modelos, con_filas: bool) -> dict:
 		"filas": [
 			{
 				"factura": f.name,
+				"asesor": f.asesor_nombre,
 				"fecha": str(f.fecha),
 				"cliente": f.cliente,
 				"modelo": f.modelo,
@@ -179,6 +185,7 @@ def _documentos(junta) -> dict:
 		facturas.append(
 			{
 				"name": f.name,
+				"asesor": f.asesor_nombre,
 				"fecha": str(f.fecha),
 				"cliente": f.cliente,
 				"monto": f.monto,
@@ -197,6 +204,7 @@ def _documentos(junta) -> dict:
 		filas_ordenes.append(
 			{
 				"name": o.name,
+				"asesor": o.asesor_nombre,
 				"fecha": str(getdate(o.transaction_date)),
 				"cliente": o.customer_name,
 				"monto": o.monto,
