@@ -32,6 +32,8 @@ class ConfigTablero:
 	texto_sales_person_por_modelo: tuple[tuple[str, str], ...]
 	modelo_por_defecto: str
 	meses_historico: int = 6
+	# Orígenes (Lead Source) de otros tableros que no se ofrecen al elegir el origen.
+	origenes_excluidos: tuple[str, ...] = ()
 	# Títulos de la página ({0} = nombre de la persona). Se traducen con _().
 	titulo_asesor: str = "Mi tablero · {0}"
 	titulo_jefe_asesor: str = "{0}"

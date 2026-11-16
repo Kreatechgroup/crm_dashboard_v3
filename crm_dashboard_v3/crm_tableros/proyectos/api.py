@@ -169,12 +169,41 @@ def get_oportunidad(nombre: str, pagina_historial: int = 0):
 		"historial_por_pagina": HISTORIAL_POR_PAGINA,
 		"opciones": {
 			"tipos": _opciones_select(meta_op, "tipo_de_oportunidad"),
-			"origenes": frappe.get_list("Lead Source", pluck="name", order_by="name asc", limit_page_length=0),
+			"origenes": _origenes(doc.company, doc.get("source")),
 			"tipos_actividad": _opciones_select(meta_act, "activity_type"),
 			"motivos": acciones.motivos_de_perdida(cfg),
 			"tipos_entregable": entregables.tipos(),
 		},
 	}
+
+
+def _origenes(company: str | None, actual: str | None = None) -> list[str]:
+	"""Orígenes que el asesor puede elegir; el que ya tiene la oportunidad siempre aparece.
+
+	Quita los desactivados (enable), los de otros tableros (origenes_excluidos) y los que
+	tienen empresas asignadas (custom_companys) sin la empresa de la oportunidad.
+	"""
+	meta = frappe.get_meta("Lead Source")
+	filtros = {"enable": 1} if meta.has_field("enable") else {}
+	origenes = frappe.get_list("Lead Source", filters=filtros, pluck="name", order_by="name asc", limit_page_length=0)
+	empresas = {}
+	campo = meta.get_field("custom_companys")
+	if campo and company:
+		# Catálogo de configuración: la tabla hija se lee completa para los orígenes ya permitidos.
+		for fila in frappe.get_all(
+			campo.options,
+			filters={"parenttype": "Lead Source", "parentfield": "custom_companys", "parent": ["in", origenes or [""]]},
+			fields=["parent", "company"],
+		):
+			empresas.setdefault(fila.parent, set()).add(fila.company)
+	resultado = [
+		o
+		for o in origenes
+		if o not in TABLERO.origenes_excluidos and (o not in empresas or company in empresas[o])
+	]
+	if actual and actual not in resultado:
+		resultado.append(actual)
+	return resultado
 
 
 def _cliente_de(doc) -> str | None:
