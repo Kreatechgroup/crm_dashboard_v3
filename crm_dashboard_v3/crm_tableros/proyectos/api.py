@@ -325,15 +325,21 @@ def perder_cotizacion(cotizacion: str, motivo: str, detalle: str | None = None):
 
 
 @frappe.whitelist(methods=["POST"])
-def crear_orden_de_venta(nombre: str, delivery_date: str):
-	"""Crea en borrador la orden de venta desde la cotización vigente; al enviarla, la oportunidad queda Ganada."""
+def orden_de_venta_para_oportunidad(source_name: str):
+	"""Orden de venta sin guardar, mapeada desde la cotización vigente, para abrirla en el formulario.
+
+	Se llama con frappe.model.open_mapped_doc (args: delivery_date). El asesor la completa en
+	el formulario de ERPNext, donde los scripts del sitio llenan Comisiones Asesor y el centro
+	de costo; al enviarla, la oportunidad queda Ganada.
+	"""
 	from erpnext.selling.doctype.quotation.quotation import make_sales_order
 
+	delivery_date = (frappe.flags.args or {}).get("delivery_date")
 	if not delivery_date:
 		frappe.throw(_("Falta la fecha de entrega."))
 	if getdate(delivery_date) < getdate():
 		frappe.throw(_("La fecha de entrega debe ser hoy o una fecha futura."))
-	doc = acciones.oportunidad_del_tablero(nombre, TABLERO, "write")
+	doc = acciones.oportunidad_del_tablero(source_name, TABLERO, "write")
 	rel = etapas.DatosRelacionados(doc.name)
 	cotizacion = next(
 		(q.name for q in rel.cotizaciones_enviadas if q.status != "Ordered" and getdate(q.valid_till) >= getdate()),
@@ -347,11 +353,12 @@ def crear_orden_de_venta(nombre: str, delivery_date: str):
 	orden.delivery_date = delivery_date
 	for item in orden.items:
 		item.delivery_date = delivery_date
+	if orden.meta.has_field("sales_model_1") and not orden.get("sales_model_1"):
+		orden.set("sales_model_1", doc.get("sales_model"))
 	# Las condiciones de pago vienen de la cotización con su fecha de vencimiento (anterior a hoy
 	# si la cotización es de otro día): ERPNext las recalcula con la fecha de la orden.
 	orden.payment_schedule = []
-	orden.insert()
-	return orden.name
+	return orden
 
 
 @frappe.whitelist(methods=["POST"])

@@ -243,6 +243,34 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
 		self.assertEqual(op.status, "Converted")
 
+	def _orden_para(self, op, delivery_date):
+		frappe.flags.args = frappe._dict(delivery_date=delivery_date)
+		try:
+			return api.orden_de_venta_para_oportunidad(op.name)
+		finally:
+			frappe.flags.args = None
+
+	def test_ganar_abre_la_orden_sin_guardarla(self):
+		op = crear_oportunidad()
+		crear_cotizacion(op, valid_till=add_days(nowdate(), 10), transaction_date=add_days(nowdate(), -5))
+		antes = frappe.db.count("Sales Order")
+		orden = self._orden_para(op, add_days(nowdate(), 7))
+		self.assertTrue(orden.is_new())
+		self.assertEqual(frappe.db.count("Sales Order"), antes)
+		self.assertEqual(getdate(orden.delivery_date), getdate(add_days(nowdate(), 7)))
+		self.assertEqual(orden.get("sales_model_1"), op.sales_model)
+		# Sin los vencimientos de la cotización (de otro día): ERPNext los recalcula al guardar.
+		self.assertFalse(orden.payment_schedule)
+
+	def test_ganar_exige_cotizacion_vigente_y_fecha_futura(self):
+		op = crear_oportunidad()
+		crear_cotizacion(op, valid_till=add_days(nowdate(), -1), transaction_date=add_days(nowdate(), -30))
+		with self.assertRaises(frappe.ValidationError):
+			self._orden_para(op, add_days(nowdate(), 7))
+		crear_cotizacion(op, valid_till=add_days(nowdate(), 10))
+		with self.assertRaises(frappe.ValidationError):
+			self._orden_para(op, add_days(nowdate(), -1))
+
 	def test_ganada_no_regresa_a_otra_etapa(self):
 		op = crear_oportunidad()
 		eventos.marcar_ganada(op.name)

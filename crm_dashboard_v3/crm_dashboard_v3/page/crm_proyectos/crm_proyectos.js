@@ -882,7 +882,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					}</button>
 					<button type="button" class="crm-boton-blanco crm-boton-mediano" data-accion="cancelar-ganar">${__("Cancelar")}</button>
 				</div>
-				${g.modo === "nueva" ? `<div class="crm-pista">${__("La orden queda en borrador para que la revises; al enviarla, la oportunidad pasa sola a Ganada.")}</div>` : ""}
+				${g.modo === "nueva" ? `<div class="crm-pista">${__("La orden se abre en el formulario para que completes comisiones y entrega; al guardarla y enviarla, la oportunidad pasa sola a Ganada.")}</div>` : ""}
 			</div>`;
 	}
 
@@ -1676,11 +1676,17 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				this.pintar_panel();
 				return;
 			}
-			crm_tableros.llamar(API_PROYECTOS + "crear_orden_de_venta", { nombre: this.op.name, delivery_date: g.fecha }).then((orden) => {
-				this.estado.ganar = null;
-				frappe.show_alert({ message: __("Orden de venta {0} creada en borrador. Revísala y envíala para marcar la oportunidad como ganada.", [orden]), indicator: "green" }, 8);
-				frappe.set_route("Form", "Sales Order", orden);
-			});
+			frappe.model
+				.open_mapped_doc({
+					method: API_PROYECTOS + "orden_de_venta_para_oportunidad",
+					source_name: this.op.name,
+					args: { delivery_date: g.fecha },
+				})
+				.then((r) => {
+					if (r && r.exc) return;
+					this.estado.ganar = null;
+					frappe.show_alert({ message: __("Completa la orden de venta y envíala para marcar la oportunidad como ganada."), indicator: "blue" }, 8);
+				});
 			return;
 		}
 		if (!g.orden) {
