@@ -190,6 +190,8 @@ def _indicadores(grupo, ventas_asesores, ctx) -> dict:
 			"ritmo_esperado": round(ctx.fraccion_del_mes * 100),
 		},
 		"pronostico": {
+			# Se calcula con las oportunidades abiertas hoy: para un mes ya cerrado no pronostica nada.
+			"mes_cerrado": ctx.hasta < ctx.hoy,
 			"mes": sum(_ponderado(o) for o in del_mes),
 			"total": sum(_ponderado(o) for o in en_pronostico),
 			"nombres_mes": [o.name for o in del_mes],

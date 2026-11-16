@@ -227,7 +227,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			</div>
 			<div class="crm-card">
 				<div class="crm-kpi-titulo">${this.e(__("Pronóstico de {0} · {1}", [this.mes_en_texto(), modelos]))}</div>
-				<button type="button" class="crm-kpi-valor crm-kpi-morado" data-accion="lista" data-valor="mes">${this.e(this.dinero(pr.mes))}</button>
+				${
+					pr.mes_cerrado
+						? `<div class="crm-kpi-valor crm-kpi-morado">—</div>
+				<div class="crm-kpi-pie">${__("El mes ya cerró: el pronóstico solo aplica al mes en curso.")}</div>`
+						: `<button type="button" class="crm-kpi-valor crm-kpi-morado" data-accion="lista" data-valor="mes">${this.e(this.dinero(pr.mes))}</button>`
+				}
 				<div class="crm-kpi-pie">${__("Todo el embudo:")} <button type="button" class="crm-boton-texto" data-accion="lista"
 					data-valor="fc">${this.e(this.dinero(pr.total))}</button> ${__("ponderado")}</div>
 				${aviso}
