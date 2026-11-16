@@ -105,6 +105,11 @@ class ConfigModelo:
 			return None
 		return self.activas[claves.index(clave) - 1]
 
+	def activas_hasta(self, clave: str) -> list[Etapa]:
+		"""Etapas activas desde la primera hasta ``clave`` (incluida); vacía si no es activa."""
+		claves = [e.clave for e in self.activas]
+		return self.activas[: claves.index(clave) + 1] if clave in claves else []
+
 
 # ---------------------------------------------------------------------------
 # Lectura de valores de una oportunidad (doc o fila de get_list)
@@ -294,3 +299,31 @@ def faltantes(doc, etapa: Etapa, cfg: ConfigModelo, rel: DatosRelacionados | Non
 	"""Textos de los requisitos que la oportunidad no cumple para entrar a ``etapa``."""
 	rel = rel or DatosRelacionados(None if doc.get("__islocal") else doc.get("name"))
 	return [REQUISITOS[k][0] for k in etapa.requisitos if not REQUISITOS[k][1](doc, rel, cfg)]
+
+
+def etapa_para_retomar(doc, cfg: ConfigModelo, rel: DatosRelacionados | None = None) -> Etapa:
+	"""Al salir de pausa: la etapa activa más avanzada a la que se llega sin saltarse requisitos.
+
+	Los requisitos de cada etapa no incluyen los de las anteriores (Negociación no pide
+	cotización), así que se recorren en orden y se detiene en la primera que falte.
+	"""
+	rel = rel or DatosRelacionados(None if doc.get("__islocal") else doc.get("name"))
+	destino = cfg.activas[0]
+	for etapa in cfg.activas[1:]:
+		if faltantes(doc, etapa, cfg, rel):
+			break
+		destino = etapa
+	return destino
+
+
+def cruza_etapa_de_cotizacion(actual: Etapa, destino: Etapa, cfg: ConfigModelo) -> bool:
+	"""True si el cambio entra a (o se salta) una etapa que toma el monto de la cotización.
+
+	Mover entre etapas activas solo pasa por el destino; al retomar desde una etapa
+	no activa (En pausa) se cuentan todas las activas hasta el destino.
+	"""
+	if destino.actualiza_monto_con_cotizacion:
+		return True
+	if actual.activa or actual.status or not destino.activa:
+		return False
+	return any(e.actualiza_monto_con_cotizacion for e in cfg.activas_hasta(destino.clave))

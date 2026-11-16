@@ -16,7 +16,9 @@ from crm_dashboard_v3.crm_tableros.common.etapas import (
 	ConfigModelo,
 	DatosRelacionados,
 	Etapa,
+	cruza_etapa_de_cotizacion,
 	etapa_efectiva,
+	etapa_para_retomar,
 	faltantes,
 	motivo_valido,
 	tasa_de,
@@ -104,7 +106,17 @@ def cambiar_etapa(doc, destino: Etapa, cfg: ConfigModelo):
 			_("Para pasar a {0} falta: {1}.").format(destino.titulo, ", ".join(falta)),
 			title=_("Faltan datos"),
 		)
-	if destino.actualiza_monto_con_cotizacion and rel.monto_cotizacion:
+	if not actual.activa and not actual.status and destino.activa:
+		# Al retomar no se salta ninguna etapa: todas las anteriores deben cumplirse.
+		tope = etapa_para_retomar(doc, cfg, rel)
+		if destino not in cfg.activas_hasta(tope.clave):
+			frappe.throw(
+				_("Para retomar en {0} faltan los requisitos de las etapas anteriores. Puede retomarse en {1}.").format(
+					destino.titulo, tope.titulo
+				),
+				title=_("Faltan datos"),
+			)
+	if cruza_etapa_de_cotizacion(actual, destino, cfg) and rel.monto_cotizacion:
 		# El monto de la cotización (en moneda de la empresa) reemplaza al estimado,
 		# guardado en la moneda de la oportunidad.
 		monto = rel.monto_cotizacion / tasa_de(doc)

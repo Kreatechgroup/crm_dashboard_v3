@@ -173,6 +173,43 @@ class TestProximoPaso(FrappeTestCase):
 		self.assertEqual(len(etapas.faltantes(op, CFG.etapa("neg"), CFG, RelacionadosFalsos())), 1)
 
 
+class TestRetomarDesdePausa(FrappeTestCase):
+	"""Al salir de «En pausa» no se salta ninguna etapa (QA 2026-11-16)."""
+
+	def completa(self):
+		return oportunidad(presupuesto_declarado_por_el_cliente=1000, fecha_estimada_aprobacion=nowdate())
+
+	def test_sin_cotizacion_no_llega_a_negociacion(self):
+		# Negociación no pide cotización, pero Propuesta enviada sí: se queda en 2.
+		rel = RelacionadosFalsos(proximo_contacto=add_days(nowdate(), 2))
+		self.assertEqual(etapas.etapa_para_retomar(self.completa(), CFG, rel).clave, "req")
+
+	def test_con_cotizacion_y_paso_vigente_llega_a_negociacion(self):
+		rel = RelacionadosFalsos(proximo_contacto=add_days(nowdate(), 2), cotizaciones=1)
+		self.assertEqual(etapas.etapa_para_retomar(self.completa(), CFG, rel).clave, "neg")
+
+	def test_con_cotizacion_y_paso_vencido_queda_en_propuesta(self):
+		op = oportunidad(
+			presupuesto_declarado_por_el_cliente=1000,
+			fecha_estimada_aprobacion=nowdate(),
+			**{CAMPO_PROXIMO_PASO: "Llamar", CAMPO_FECHA_PROXIMO_PASO: add_days(nowdate(), -1)},
+		)
+		rel = RelacionadosFalsos(cotizaciones=1)
+		self.assertEqual(etapas.etapa_para_retomar(op, CFG, rel).clave, "prop")
+
+	def test_sin_datos_vuelve_a_calificar(self):
+		rel = RelacionadosFalsos(cotizaciones=1)
+		self.assertEqual(etapas.etapa_para_retomar(oportunidad(), CFG, rel).clave, "cal")
+
+	def test_monto_de_cotizacion_al_retomar_pasando_por_propuesta(self):
+		pausa, req, neg = CFG.etapa("pausa"), CFG.etapa("req"), CFG.etapa("neg")
+		self.assertTrue(etapas.cruza_etapa_de_cotizacion(pausa, neg, CFG))
+		self.assertFalse(etapas.cruza_etapa_de_cotizacion(pausa, req, CFG))
+		# Entre etapas activas solo cuenta el destino: 3 → 4 no vuelve a tomar el monto.
+		self.assertFalse(etapas.cruza_etapa_de_cotizacion(CFG.etapa("prop"), neg, CFG))
+		self.assertTrue(etapas.cruza_etapa_de_cotizacion(req, CFG.etapa("prop"), CFG))
+
+
 class TestMontosYFormato(FrappeTestCase):
 	def test_monto_usa_cotizacion_cuando_el_historico_esta_en_cero(self):
 		self.assertEqual(etapas.monto_de(oportunidad(opportunity_amount=0), CFG, 4500), 4500)

@@ -82,7 +82,7 @@ def get_oportunidad(nombre: str, pagina_historial: int = 0):
 	if cerrada:
 		siguiente = anterior = None
 	elif etapa.clave == "pausa":
-		siguiente, anterior = _etapa_para_retomar(doc, cfg, rel), None
+		siguiente, anterior = etapas.etapa_para_retomar(doc, cfg, rel), None
 	else:
 		siguiente, anterior = cfg.siguiente(etapa.clave), cfg.anterior(etapa.clave)
 
@@ -249,12 +249,6 @@ def _oportunidades_de_ordenes(ordenes: list[str]) -> dict[str, str]:
 		if oportunidad_de.get(i.prevdoc_docname):
 			ligadas.setdefault(i.parent, oportunidad_de[i.prevdoc_docname])
 	return ligadas
-
-
-def _etapa_para_retomar(doc, cfg, rel):
-	"""Al salir de pausa: la etapa activa más avanzada cuyos requisitos ya se cumplen."""
-	cumplidas = [e for e in cfg.activas if not etapas.faltantes(doc, e, cfg, rel)]
-	return cumplidas[-1] if cumplidas else cfg.activas[0]
 
 
 def _opciones_select(meta, fieldname: str) -> list[str]:
