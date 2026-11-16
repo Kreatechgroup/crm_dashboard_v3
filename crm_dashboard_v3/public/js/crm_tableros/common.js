@@ -9,6 +9,23 @@ crm_tableros.dinero = (monto, moneda) => format_currency(monto || 0, moneda, 2);
 
 crm_tableros.plural = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
 
+// Confirmación con botones en texto propio («Sí, renovar» / «Cancelar»): frappe.confirm
+// usa la traducción de Frappe de «Yes», que en español sale «Si» sin tilde.
+crm_tableros.confirmar = (mensaje, etiqueta, accion) => {
+	const d = new frappe.ui.Dialog({
+		title: __("Confirmar"),
+		primary_action_label: etiqueta,
+		primary_action: () => {
+			d.hide();
+			accion();
+		},
+		secondary_action_label: __("Cancelar"),
+		secondary_action: () => d.hide(),
+	});
+	d.$body.append($("<p>").text(mensaje));
+	d.show();
+};
+
 // Cada número del tablero abre la lista de ERPNext con los registros que lo forman.
 crm_tableros.abrir_lista = (doctype, nombres) => {
 	if (!nombres || !nombres.length) {

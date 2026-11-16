@@ -216,9 +216,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					<div class="crm-barra-ritmo" style="left:${k.meta.ritmo_esperado}%" title="${__("Ritmo esperado hoy")}"></div>
 				</div>
 				<div class="crm-kpi-pie">${this.e(
-					__("{0}% de la meta · {1} facturas · {2} · la línea es el ritmo esperado hoy ({3}%)", [
+					__("{0}% de la meta · {1} · {2} · la línea es el ritmo esperado hoy ({3}%)", [
 						k.meta.porcentaje,
-						k.meta.facturas.length,
+						crm_tableros.plural(k.meta.facturas.length, __("factura"), __("facturas")),
 						modelos,
 						k.meta.ritmo_esperado,
 					])
@@ -533,7 +533,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				);
 				const items = g.clave === "vencidas" ? this.html_vencidas() : g.items.slice(0, 3).map((it) => this.html_item(it)).join("");
 				const mas = g.clave !== "vencidas" && g.items.length > 3
-					? `<button type="button" class="crm-enlace" data-accion="lista" data-valor="${this.e(g.clave)}">${this.e(__("Ver las {0}", [g.cantidad]))}</button>`
+					? `<button type="button" class="crm-enlace" data-accion="lista" data-valor="${this.e(g.clave)}">${this.e(__("Ver todas ({0})", [g.cantidad]))}</button>`
 					: "";
 				return `
 					<div class="crm-grupo">
@@ -550,7 +550,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	}
 
 	html_item(it) {
-		let valor = it.valor ? this.dinero(it.valor) : __("{0} días", [it.dias]);
+		let valor = it.valor ? this.dinero(it.valor) : crm_tableros.plural(it.dias, __("día"), __("días"));
 		if (it.valor && it.tab === "actividad") valor += ` · ${it.dias} d`;
 		return `
 			<div class="crm-item">
@@ -567,7 +567,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				const partes = [];
 				if (!this.es_modelo_principal(v.modelo)) partes.push(v.modelo);
 				if (v.asesor) partes.push(this.primer_nombre(v.asesor));
-				partes.push(__("cotizada hace {0} días", [v.dias_cotizada]));
+				partes.push(__("cotizada hace {0}", [crm_tableros.plural(v.dias_cotizada, __("día"), __("días"))]));
 				const perdiendo = this.estado.perdiendo === v.name;
 				const form = perdiendo
 					? `
@@ -674,7 +674,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				name: it.name,
 				cliente: it.cliente,
 				sub: it.sub,
-				valor: it.valor ? this.dinero(it.valor) + (it.tab === "actividad" ? ` · ${it.dias} d` : "") : __("{0} días", [it.dias]),
+				valor: it.valor ? this.dinero(it.valor) + (it.tab === "actividad" ? ` · ${it.dias} d` : "") : crm_tableros.plural(it.dias, __("día"), __("días")),
 				doctype: "Opportunity",
 				tab: it.tab,
 			})),
@@ -733,7 +733,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			<div class="crm-op-meta">
 				<a class="crm-mono" href="/app/opportunity/${encodeURIComponent(op.name)}">${this.e(op.name)}</a>
 				${op.tipo_de_oportunidad ? " · " + this.e(op.tipo_de_oportunidad) : ""}
-				· ${op.dias === 0 ? __("movida hoy") : this.e(__("{0} días sin moverse", [op.dias]))}
+				· ${op.dias === 0 ? __("movida hoy") : this.e(__("{0} sin moverse", [crm_tableros.plural(op.dias, __("día"), __("días"))]))}
 			</div>
 			<div class="crm-op-meta">${__("Asesor:")} <strong>${this.e(op.asesor)}</strong> · ${__("Modelo:")} <strong>${this.e(op.modelo)}</strong></div>
 			${op.incoherente ? `<div class="crm-alerta" style="margin-top:8px">${this.e(__("Etapa {0} con status {1}: corrígela en el formulario.", [op.etapa.titulo, op.status]))}</div>` : ""}
@@ -1107,7 +1107,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					<div class="crm-estados">
 						<h2>${this.e(__("Oportunidades por estado · {0}", [this.texto_modelos()]))}</h2>
 						<p class="crm-historico-sub">${this.e(
-							__("{0} · creadas en {1} (al {2}) · {3} oportunidades", [quien, this.mes_en_texto(), corte, actual.total])
+							__("{0} · creadas en {1} (al {2}) · {3}", [quien, this.mes_en_texto(), corte, crm_tableros.plural(actual.total, __("oportunidad"), __("oportunidades"))])
 						)}</p>
 						<p class="crm-nota">${__("Tasa de cierre de los últimos {0} meses:", [h.meses.length])} <strong>${
 			h.tasa_cierre == null ? "—" : this.e(h.tasa_cierre + "%")
@@ -1165,7 +1165,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const modos = [["", this.texto_modelos()]].concat(c.modelos.map((m) => [m, __("Solo {0}", [m])]));
 		const nota = c.vista_tienda
 			? `<strong>${__("Toda la tienda")}</strong> ${__(
-					"suma a todos los asesores: toca un monto subrayado para ver sus documentos (cada uno dice de qué asesor es). Debajo, el resumen de cada asesor; «Ver como lo ve…» abre su consolidado tal como él lo ve. Montos sin IVA."
+					"suma a todos los asesores: toca un monto subrayado para ver sus documentos (cada uno dice de qué asesor es). Debajo, el resumen de cada asesor; «Ver como lo ve…» abre su consolidado tal como lo ve el asesor. Montos sin IVA."
 			  )}`
 			: `<strong>${__("Toca un monto subrayado")}</strong> ${__(
 					"para ver sus documentos vinculados. Facturado = facturas del mes atribuidas por la tabla Comisiones Asesor de su orden de venta (o creadas por el asesor sin orden), no por el Sales Team. Montos sin IVA."
@@ -1230,14 +1230,14 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		};
 		const filas = [
 			[__("Meta del mes"), (k, x) => celda(k, null, this.dinero(x.meta))],
-			[__("Facturado"), (k, x) => celda(k, "facturas", this.dinero(x.facturado), __("{0} facturas · {1}%", [x.facturas.length, x.porcentaje]), "Sales Invoice")],
-			[__("Órdenes de venta del mes"), (k, x) => celda(k, "ordenes", this.dinero(x.ordenes.monto), __("{0} órdenes", [x.ordenes.nombres.length]), "Sales Order")],
-			[__("Cotizado en el mes"), (k, x) => celda(k, "cotizado", this.dinero(x.cotizado.monto), __("{0} cotizaciones", [x.cotizado.nombres.length]), "Quotation")],
-			[__("Cotizaciones vigentes"), (k, x) => celda(k, "vigentes", this.dinero(x.vigentes.monto), __("{0} abiertas", [x.vigentes.nombres.length]), "Quotation")],
+			[__("Facturado"), (k, x) => celda(k, "facturas", this.dinero(x.facturado), __("{0} · {1}%", [crm_tableros.plural(x.facturas.length, __("factura"), __("facturas")), x.porcentaje]), "Sales Invoice")],
+			[__("Órdenes de venta del mes"), (k, x) => celda(k, "ordenes", this.dinero(x.ordenes.monto), crm_tableros.plural(x.ordenes.nombres.length, __("orden"), __("órdenes")), "Sales Order")],
+			[__("Cotizado en el mes"), (k, x) => celda(k, "cotizado", this.dinero(x.cotizado.monto), crm_tableros.plural(x.cotizado.nombres.length, __("cotización"), __("cotizaciones")), "Quotation")],
+			[__("Cotizaciones vigentes"), (k, x) => celda(k, "vigentes", this.dinero(x.vigentes.monto), crm_tableros.plural(x.vigentes.nombres.length, __("abierta"), __("abiertas")), "Quotation")],
 			[__("Oportunidades abiertas"), (k, x) => celda(k, "abiertas", String(x.abiertas.cantidad), "", "Opportunity")],
 			[
 				__("Oportunidades creadas en {0}", [this.mes_en_texto()]),
-				(k, x) => celda(k, "creadas", String(x.creadas.cantidad), __("{0} ganadas · {1} perdidas", [x.creadas.ganadas, x.creadas.perdidas]), "Opportunity"),
+				(k, x) => celda(k, "creadas", String(x.creadas.cantidad), __("{0} · {1}", [crm_tableros.plural(x.creadas.ganadas, __("ganada"), __("ganadas")), crm_tableros.plural(x.creadas.perdidas, __("perdida"), __("perdidas"))]), "Opportunity"),
 			],
 		];
 		const cabeza = (primera) =>
@@ -1283,7 +1283,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				<table class="crm-tabla crm-tabla-cons">
 					${cabeza(__("Cálculo"))}
 					<tbody>
-						${fila(__("Facturas atribuidas en {0}", [mes]), (x) => [this.dinero(x.atribuido), __("{0} facturas · neto × distribución", [x.cantidad])])}
+						${fila(__("Facturas atribuidas en {0}", [mes]), (x) => [this.dinero(x.atribuido), __("{0} · neto × distribución", [crm_tableros.plural(x.cantidad, __("factura"), __("facturas"))])])}
 						${fila(__("Cantidad pagada"), (x) => [this.dinero(x.cobrado), __("{0}% de lo facturado", [x.atribuido ? Math.round((x.cobrado / x.atribuido) * 100) : 0])])}
 						${fila(__("× commission_rate del Sales Person"), (x) => [tasa(x), __("campo commission_rate")])}
 						${fila(__("÷ 100 = Comisión"), (x) => [this.dinero(x.comision), ""], "crm-fila-comision")}
@@ -1305,7 +1305,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					const clase = this.es_modelo_principal(m) ? "crm-grupo-proyectos" : "crm-grupo-retail";
 					return `
 						<tr class="${clase}"><td colspan="${columnas}"><strong>${this.e(m)}</strong> <span class="crm-sub">· ${this.e(
-						__("{0} facturas · comisión {1} · comisión futura {2}", [lista.length, this.dinero(com), this.dinero(fut)])
+						__("{0} · comisión {1} · comisión futura {2}", [crm_tableros.plural(lista.length, __("factura"), __("facturas")), this.dinero(com), this.dinero(fut)])
 					)}</span></td></tr>
 						${
 							lista.length
@@ -1400,7 +1400,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const fuente = { facturas: docs.facturas, ordenes: docs.ordenes, cotizado: docs.cotizaciones_mes, vigentes: docs.cotizaciones_vigentes };
 		const titulos = { facturas: __("Facturas"), ordenes: __("Órdenes de venta"), cotizado: __("Cotizaciones del mes"), vigentes: __("Cotizaciones vigentes") };
 		const ayudas = {
-			facturas: __("Facturas del mes atribuidas al asesor por la tabla Comisiones Asesor de su orden de venta (con su % de distribución), más las que él creó sin orden de venta. Son las que cuentan para la meta."),
+			facturas: __("Facturas del mes atribuidas al asesor por la tabla Comisiones Asesor de su orden de venta (con su % de distribución), más las que creó el asesor sin orden de venta. Son las que cuentan para la meta."),
 			ordenes: __("Órdenes de venta del mes separadas por su modelo de venta. Una orden cuenta para la meta cuando se factura."),
 			cotizado: __("Cotizaciones enviadas en el mes, con su estado actual y la oportunidad de la que vienen."),
 			vigentes: __("Cotizaciones abiertas y vigentes hoy: lo que todavía puede convertirse en orden."),
@@ -1456,7 +1456,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				return `
 					<tr class="${clase}"><td colspan="6"><span class="crm-punto ${this.es_modelo_principal(m) ? "crm-c-proyectos" : "crm-c-retail"}" style="margin-right:6px"></span><strong>${this.e(
 					m
-				)}</strong> <span class="crm-sub">· ${this.e(__("{0} documentos · {1}", [filas.length, this.dinero(suma(filas))]))}</span></td></tr>
+				)}</strong> <span class="crm-sub">· ${this.e(__("{0} · {1}", [crm_tableros.plural(filas.length, __("documento"), __("documentos")), this.dinero(suma(filas))]))}</span></td></tr>
 					${filas.length ? filas.map(fila).join("") : `<tr><td colspan="6" class="crm-sub">${this.e(__("Sin documentos de {0}.", [m]))}</td></tr>`}`;
 			})
 			.join("");
@@ -1470,12 +1470,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			.join("");
 		const total_txt =
 			det.modelo === c.total
-				? __("Total: {0} en {1} documentos ({2}).", [
+				? __("Total: {0} en {1} ({2}).", [
 						this.dinero(suma(lista)),
-						lista.length,
+						crm_tableros.plural(lista.length, __("documento"), __("documentos")),
 						c.modelos.map((m) => m + " " + this.dinero(suma(lista.filter((x) => x.modelo === m)))).join(" · "),
 				  ])
-				: __("Total: {0} en {1} documentos.", [this.dinero(suma(lista)), lista.length]);
+				: __("Total: {0} en {1}.", [this.dinero(suma(lista)), crm_tableros.plural(lista.length, __("documento"), __("documentos"))]);
 		return `
 			<div class="crm-docs">
 				<div class="crm-docs-cab">
@@ -1737,6 +1737,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			this.pintar_panel();
 			return;
 		}
+		this.quitar_aviso_faltan();
 		crm_tableros
 			.llamar(API_PROYECTOS + "registrar_actividad", { nombre: this.op.name, activity_type: af.tipo, comment: af.com, next_contact_date: prox })
 			.then(() => {
@@ -1746,6 +1747,13 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			});
 	}
 
+	// Si un intento anterior dejó el aviso «Falta: …» y ya está completo, se quita antes de guardar.
+	quitar_aviso_faltan() {
+		if (!this.estado.intento) return;
+		this.estado.intento = null;
+		this.pintar_panel();
+	}
+
 	solicitar_entregable() {
 		const df = this.estado.df;
 		if (!df.tipo || !df.fecha || !df.desc.trim()) {
@@ -1753,6 +1761,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			this.pintar_panel();
 			return;
 		}
+		this.quitar_aviso_faltan();
 		crm_tableros
 			.llamar(API_PROYECTOS + "solicitar_entregable", { nombre: this.op.name, tipo_entregable: df.tipo, fecha: df.fecha, descripcion: df.desc })
 			.then(() => {
@@ -1763,7 +1772,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	}
 
 	renovar(cotizacion) {
-		frappe.confirm(__("¿Crear una copia de {0} con nueva vigencia y enviarla?", [cotizacion]), () =>
+		crm_tableros.confirmar(__("¿Crear una copia de {0} con nueva vigencia y enviarla?", [cotizacion]), __("Sí, renovar"), () =>
 			crm_tableros
 				.llamar(API_PROYECTOS + "renovar_cotizacion", { cotizacion })
 				.then((nueva) => this.refrescar_tras_accion(__("Cotización renovada: {0}", [nueva])))

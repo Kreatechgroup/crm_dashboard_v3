@@ -35,6 +35,13 @@ def etiqueta_mes_corta(fecha) -> str:
 	return MESES[getdate(fecha).month - 1][:3].capitalize()
 
 
+def fecha_corta(fecha, hoy=None) -> str:
+	"""«25 nov» (con año si no es el del día de hoy), como las fechas de la página."""
+	fecha = getdate(fecha)
+	texto = f"{fecha.day} {MESES[fecha.month - 1][:3]}"
+	return texto if fecha.year == getdate(hoy).year else f"{texto} {fecha.year}"
+
+
 def semaforo(clave: str) -> dict:
 	return {"clave": clave, "texto": SEMAFORO[clave]}
 

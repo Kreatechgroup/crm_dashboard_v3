@@ -211,6 +211,10 @@ class TestRetomarDesdePausa(FrappeTestCase):
 
 
 class TestMontosYFormato(FrappeTestCase):
+	def test_fecha_corta(self):
+		self.assertEqual(formato.fecha_corta("2026-11-25", "2026-11-16"), "25 nov")
+		self.assertEqual(formato.fecha_corta("2027-01-06", "2026-11-16"), "6 ene 2027")
+
 	def test_monto_usa_cotizacion_cuando_el_historico_esta_en_cero(self):
 		self.assertEqual(etapas.monto_de(oportunidad(opportunity_amount=0), CFG, 4500), 4500)
 		self.assertEqual(etapas.monto_de(oportunidad(presupuesto_declarado_por_el_cliente=800), CFG, 4500), 800)

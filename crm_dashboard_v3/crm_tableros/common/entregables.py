@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, strip_html
 
+from crm_dashboard_v3.crm_tableros.common.formato import fecha_corta
+
 DOCTYPE = "Documento Entregable"
 
 
@@ -35,11 +37,11 @@ def de_documento(doctype: str, nombre: str, hoy) -> list[dict]:
 	for f in filas:
 		solicitada = getdate(f.fecha_solicitada_entrega) if f.fecha_solicitada_entrega else None
 		if f.due_date:
-			estado, clave = _("Entregado el {0}").format(f.due_date), "verde"
+			estado, clave = _("Entregado el {0}").format(fecha_corta(f.due_date, hoy)), "verde"
 		elif solicitada and solicitada < getdate(hoy):
-			estado, clave = _("Atrasado · pedido para el {0}").format(solicitada), "rojo"
+			estado, clave = _("Atrasado · pedido para el {0}").format(fecha_corta(solicitada, hoy)), "rojo"
 		else:
-			estado, clave = _("Solicitado · para el {0}").format(solicitada or "—"), "gris"
+			estado, clave = _("Solicitado · para el {0}").format(fecha_corta(solicitada, hoy) if solicitada else "—"), "gris"
 		resultado.append(
 			{
 				"name": f.name,
