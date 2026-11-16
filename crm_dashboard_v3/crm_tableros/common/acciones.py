@@ -169,6 +169,9 @@ def renovar_cotizacion(nombre: str, t: ConfigTablero, valid_till: str | None = N
 	copia.status = "Draft"
 	copia.transaction_date = hoy
 	copia.valid_till = valid_till
+	# Las condiciones de pago copiadas vencen en la fecha de la original: ERPNext las
+	# recalcula con la plantilla y la nueva fecha (si no, la orden de venta no se puede crear).
+	copia.payment_schedule = []
 	copia.insert()
 	copia.submit()
 	return copia.name

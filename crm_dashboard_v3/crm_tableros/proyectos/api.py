@@ -347,6 +347,9 @@ def crear_orden_de_venta(nombre: str, delivery_date: str):
 	orden.delivery_date = delivery_date
 	for item in orden.items:
 		item.delivery_date = delivery_date
+	# Las condiciones de pago vienen de la cotización con su fecha de vencimiento (anterior a hoy
+	# si la cotización es de otro día): ERPNext las recalcula con la fecha de la orden.
+	orden.payment_schedule = []
 	orden.insert()
 	return orden.name
 

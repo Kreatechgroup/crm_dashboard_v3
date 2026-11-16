@@ -179,6 +179,14 @@ class TestCriterio3PropuestasVencidas(BaseCRMProyectos):
 		self.assertGreaterEqual(getdate(frappe.db.get_value("Quotation", nueva, "valid_till")), getdate(nowdate()))
 		self.assertEqual(frappe.db.get_value("Quotation", nueva, "docstatus"), 1)
 
+	def test_renovada_no_trae_vencimientos_de_pago_pasados(self):
+		# Si la copia conservara los vencimientos de la original, la orden de venta no se podría crear.
+		op, q = self._vencida()
+		nueva = api.renovar_cotizacion(q.name)
+		vencimientos = frappe.get_all("Payment Schedule", filters={"parent": nueva, "parenttype": "Quotation"}, pluck="due_date")
+		for fecha in vencimientos:
+			self.assertGreaterEqual(getdate(fecha), getdate(nowdate()))
+
 	def test_sale_al_perder_y_la_oportunidad_queda_perdida(self):
 		op, q = self._vencida()
 		api.perder_cotizacion(q.name, MOTIVO_PRUEBA)
