@@ -87,9 +87,11 @@
 .crm-tarjeta[aria-current="true"] { border: 2px solid var(--crm-acento); padding: 8px 9px; }
 .crm-tarjeta-fila { display: flex; justify-content: space-between; gap: 6px; align-items: center; }
 .crm-tarjeta-fila + .crm-tarjeta-fila { margin-top: 3px; align-items: baseline; }
+.crm-tarjeta-fila .crm-tag { flex-shrink: 0; }
 .crm-tarjeta-cliente { font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.crm-tarjeta-monto { font-size: 13px; font-weight: 700; }
-.crm-tarjeta-quien { font-size: 11px; font-weight: 600; color: var(--crm-acento); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* El monto nunca se parte («Q» en una línea y la cifra en otra): cede espacio el tipo, que se recorta. */
+.crm-tarjeta-monto { font-size: 13px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+.crm-tarjeta-quien { font-size: 11px; font-weight: 600; color: var(--crm-acento); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .crm-tarjeta-quien-retail { color: var(--crm-retail-tx); }
 .crm-tarjeta-paso { display: block; font-size: 11px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--crm-texto-2); }
 .crm-tarjeta-paso-mal { font-weight: 600; color: var(--crm-rojo); }
