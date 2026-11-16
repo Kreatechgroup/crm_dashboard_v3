@@ -131,6 +131,20 @@ class TestCriterio2ProbabilidadYPronostico(BaseCRMProyectos):
 		with self.assertRaises(frappe.ValidationError):
 			api.mover_etapa(op.name, "pausa")
 
+	def test_pausa_no_informa_probabilidad(self):
+		op = crear_oportunidad()
+		r = api.mover_etapa(op.name, "pausa", fecha_retomar=add_days(nowdate(), 10))
+		self.assertIsNone(r["probability"])
+
+	def test_retomar_no_salta_la_propuesta_sin_cotizacion(self):
+		# Con monto, fecha y próximo paso vigente cumple «Negociación», pero no tiene cotización.
+		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=10000, fecha_estimada_aprobacion=nowdate())
+		crear_actividad(op)
+		api.mover_etapa(op.name, "pausa", fecha_retomar=add_days(nowdate(), 10))
+		self.assertEqual(api.get_oportunidad(op.name)["siguiente"]["clave"], "req")
+		with self.assertRaises(frappe.ValidationError):
+			api.mover_etapa(op.name, "neg")
+
 
 class TestCriterio3PropuestasVencidas(BaseCRMProyectos):
 	"""3. Una cotización vencida aparece en «Propuestas vencidas» y sale al renovarla o perderla."""

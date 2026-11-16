@@ -292,7 +292,9 @@ def mover_etapa(
 		if destino.clave == "pausa":
 			doc.set(CAMPO_FECHA_RETOMAR, fecha_retomar)
 		acciones.cambiar_etapa(doc, destino, cfg)
-	return {"name": doc.name, "etapa": destino.titulo, "probability": doc.probability, "status": doc.status}
+	# En pausa no tiene probabilidad propia (no cuenta en el pronóstico): no se informa.
+	probabilidad = doc.probability if destino.probabilidad is not None else None
+	return {"name": doc.name, "etapa": destino.titulo, "probability": probabilidad, "status": doc.status}
 
 
 @frappe.whitelist(methods=["POST"])
