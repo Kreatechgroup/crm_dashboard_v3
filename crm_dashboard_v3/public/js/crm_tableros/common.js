@@ -167,7 +167,7 @@ crm_tableros.TableroBase = class TableroBase {
 			d.es_jefe && d.establecimientos && d.establecimientos.length > 1
 				? `<label class="crm-campo-inline">${__("Tienda")}
 						<select class="crm-select" data-cambio="establecimiento">${d.establecimientos
-							.map((x) => `<option ${x === d.establecimiento ? "selected" : ""}>${this.e(x)}</option>`)
+							.map((x) => `<option value="${this.e(x)}" ${x === d.establecimiento ? "selected" : ""}>${this.e(x)}</option>`)
 							.join("")}</select></label>`
 				: "";
 		return `

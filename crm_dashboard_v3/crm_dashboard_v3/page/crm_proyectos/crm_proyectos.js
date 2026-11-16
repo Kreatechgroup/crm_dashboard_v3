@@ -377,7 +377,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			.map(([v, l]) => `<option value="${this.e(v)}" ${this.estado.filtro_modelo === v ? "selected" : ""}>${this.e(l)}</option>`)
 			.join("");
 		const opc_tipo = [`<option value="">${__("Todos")}</option>`]
-			.concat(d.tipos.map((t) => `<option ${this.estado.filtro_tipo === t ? "selected" : ""}>${this.e(t)}</option>`))
+			.concat(d.tipos.map((t) => `<option value="${this.e(t)}" ${this.estado.filtro_tipo === t ? "selected" : ""}>${this.e(t)}</option>`))
 			.join("");
 		const ej = (clave, dias, texto) =>
 			`<span class="crm-leyenda-item">${this.tag({ clave, texto: { verde: __("Verde"), amarillo: __("Amarillo"), rojo: __("Rojo") }[clave] }, dias + " d", true)}${this.e(texto)}</span>`;
@@ -576,7 +576,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 							<select class="crm-select" data-modelo="motivo_vencida">
 								<option value="">${__("Elige un motivo")}</option>
 								${this.datos.motivos
-									.map((m) => `<option ${this.estado.motivo_vencida === m ? "selected" : ""}>${this.e(m)}</option>`)
+									.map((m) => `<option value="${this.e(m)}" ${this.estado.motivo_vencida === m ? "selected" : ""}>${this.e(m)}</option>`)
 									.join("")}
 							</select>
 						</label>
@@ -915,7 +915,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			if (sel.k === "regresar") {
 				if (sel.d.clave === "cal") {
 					campos += `<label>${__("Origen")} *<select class="crm-select" data-campo="source"><option value="">${__("Elige el origen")}</option>${op.opciones.origenes
-						.map((o) => `<option ${o === op.source ? "selected" : ""}>${this.e(o)}</option>`)
+						.map((o) => `<option value="${this.e(o)}" ${o === op.source ? "selected" : ""}>${this.e(o)}</option>`)
 						.join("")}</select></label>`;
 				}
 			} else if (sel.k === "pausa") {
@@ -924,7 +924,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				)}" value="${this.e(v.retomar)}"></label>`;
 			} else {
 				campos += `<label>${__("Motivo de pérdida")} *<select class="crm-select" data-modelo="sec_vals.motivo"><option value="">${__("Elige un motivo")}</option>${op.opciones.motivos
-					.map((m) => `<option ${m === v.motivo ? "selected" : ""}>${this.e(m)}</option>`)
+					.map((m) => `<option value="${this.e(m)}" ${m === v.motivo ? "selected" : ""}>${this.e(m)}</option>`)
 					.join("")}</select></label>
 					<label>${__("Detalle (opcional)")}<input type="text" class="crm-input" data-modelo="sec_vals.detalle" value="${this.e(v.detalle)}"></label>`;
 			}
@@ -965,7 +965,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			: `
 			<div class="crm-form">
 				<label>${__("Tipo de actividad")} *<select class="crm-select" data-modelo="af.tipo"><option value="">${__("Elige el tipo")}</option>${op.opciones.tipos_actividad
-					.map((t) => `<option ${t === af.tipo ? "selected" : ""}>${this.e(t)}</option>`)
+					.map((t) => `<option value="${this.e(t)}" ${t === af.tipo ? "selected" : ""}>${this.e(t)}</option>`)
 					.join("")}</select></label>
 				<label>${__("Comentario")} *<textarea class="crm-textarea" rows="3" data-modelo="af.com" placeholder="${__("Qué se habló y qué quedó pendiente")}">${this.e(af.com)}</textarea></label>
 				<label>${__("Próximo contacto")} *<input type="date" class="crm-input" data-modelo="af.prox" min="${this.e(this.datos.hoy)}"
@@ -1014,7 +1014,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			: `
 			<div class="crm-form">
 				<label>${__("Tipo de entregable")} *<select class="crm-select" data-modelo="df.tipo"><option value="">${__("Elige el tipo")}</option>${tipos
-					.map((t) => `<option ${t === df.tipo ? "selected" : ""}>${this.e(t)}</option>`)
+					.map((t) => `<option value="${this.e(t)}" ${t === df.tipo ? "selected" : ""}>${this.e(t)}</option>`)
 					.join("")}</select></label>
 				<label>${__("Fecha solicitada")} *<input type="date" class="crm-input" data-modelo="df.fecha" min="${this.e(this.datos.hoy)}" value="${this.e(df.fecha)}"></label>
 				<label>${__("Descripción")} *<textarea class="crm-textarea" rows="3" data-modelo="df.desc" placeholder="${__("Qué necesita el cliente")}">${this.e(df.desc)}</textarea></label>
