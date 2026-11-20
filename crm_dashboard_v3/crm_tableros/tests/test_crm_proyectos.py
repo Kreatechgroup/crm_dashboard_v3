@@ -342,8 +342,10 @@ class TestWorkflowCompartido(BaseCRMProyectos):
 		)
 		crear_cotizacion(op, valid_till=add_days(nowdate(), 15), monto=8000)
 		op.reload()
+		# Desde Calificar pasa por Requerimiento y diseño (el workflow solo avanza de una en una).
 		self.assertEqual(op.get(CAMPO_ETAPA), "3 · Propuesta enviada")
 		self.assertEqual(flt(op.probability), 50)
+		self.assertEqual(flt(op.opportunity_amount), 8000)
 
 	def test_cotizacion_enviada_sin_requisitos_no_mueve_ni_bloquea(self):
 		op = crear_oportunidad()  # sin fecha estimada ni próximo paso
@@ -351,6 +353,17 @@ class TestWorkflowCompartido(BaseCRMProyectos):
 		self.assertEqual(q.docstatus, 1)
 		op.reload()
 		self.assertEqual(op.get(CAMPO_ETAPA), "1 · Calificar")
+
+	def test_cotizacion_enviada_sin_proximo_paso_avisa_que_falta(self):
+		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=5000, fecha_estimada_aprobacion=add_days(nowdate(), 20))
+		frappe.clear_messages()
+		q = crear_cotizacion(op, valid_till=add_days(nowdate(), 15))
+		self.assertEqual(q.docstatus, 1)
+		op.reload()
+		self.assertEqual(op.get(CAMPO_ETAPA), "1 · Calificar")
+		avisos = " ".join(str(m) for m in frappe.message_log)
+		self.assertIn("quedó en 1 · Calificar", avisos)
+		self.assertIn("próximo paso con fecha", avisos)
 
 	def test_descartar_en_plus_pide_motivo_y_da_por_perdida(self):
 		op = crear_oportunidad()

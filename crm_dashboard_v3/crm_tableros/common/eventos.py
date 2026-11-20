@@ -103,8 +103,11 @@ def estado_inicial(doc, method=None):
 def avanzar_con_cotizacion(doc, method=None):
 	"""Hook on_submit de Quotation: la oportunidad del tablero pasa a la etapa de la propuesta.
 
-	Solo si está en una etapa anterior. Valida requisitos y workflow; si algo falta, no
-	la mueve y no bloquea el envío de la cotización: solo avisa qué faltó.
+	Solo si está en una etapa anterior. Avanza etapa por etapa (1 → 2 → 3), porque el
+	workflow solo permite pasar a la siguiente y cada etapa intermedia tiene sus
+	requisitos (la 2 exige monto, fecha de cierre y próximo paso con fecha). Se detiene
+	en la primera que no se cumple y no bloquea el envío de la cotización: solo avisa
+	qué faltó.
 	"""
 	if not doc.get("opportunity"):
 		return
@@ -119,20 +122,27 @@ def avanzar_con_cotizacion(doc, method=None):
 	actual = etapa_efectiva(oportunidad, cfg)
 	if not destino or actual not in cfg.activas or cfg.activas.index(actual) >= cfg.activas.index(destino):
 		return
-	try:
-		acciones.cambiar_etapa(oportunidad, destino, cfg)
-	except frappe.ValidationError as error:
-		# frappe.throw dejó su mensaje en rojo; se reemplaza por un aviso que no asusta,
-		# porque la cotización sí se envió.
-		if frappe.message_log:
-			frappe.message_log.pop()
-		frappe.msgprint(
-			_("La cotización se envió, pero la oportunidad {0} no pasó a {1}: {2}").format(
-				oportunidad.name, destino.titulo, frappe.utils.strip_html(str(error))
-			),
-			title=_("Etapa de la oportunidad"),
-			indicator="orange",
-		)
+	pasos = cfg.activas[cfg.activas.index(actual) + 1 : cfg.activas.index(destino) + 1]
+	for paso in pasos:
+		try:
+			acciones.cambiar_etapa(oportunidad, paso, cfg)
+		except frappe.ValidationError as error:
+			# frappe.throw dejó su mensaje en rojo; se reemplaza por un aviso que no asusta,
+			# porque la cotización sí se envió.
+			if frappe.message_log:
+				frappe.message_log.pop()
+			oportunidad.reload()  # la etapa guardada, no la que se intentó poner
+			frappe.msgprint(
+				_("La cotización se envió, pero la oportunidad {0} no pasó a {1} y quedó en {2}: {3}").format(
+					oportunidad.name,
+					destino.titulo,
+					etapa_efectiva(oportunidad, cfg).titulo,
+					frappe.utils.strip_html(str(error)),
+				),
+				title=_("Etapa de la oportunidad"),
+				indicator="orange",
+			)
+			return
 
 
 def marcar_ganada(oportunidad: str):
