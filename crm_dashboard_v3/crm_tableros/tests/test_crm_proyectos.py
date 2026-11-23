@@ -536,10 +536,12 @@ class TestGanadaConVentaPOS(BaseCRMProyectos):
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
 		self.assertEqual(op.status, "Converted")
 
-	# NUEVO-3 · Venta POS y etapa Ganada en el mismo guardado por API.
+	# Venta POS y etapa Ganada en el mismo guardado por API.
 
-	def test_venta_pos_y_ganada_en_el_mismo_guardado(self):
-		# Se valida primero el vínculo y después la etapa con la venta ya puesta: queda ganada.
+	def test_venta_pos_y_ganada_desde_propuesta_en_el_mismo_guardado(self):
+		# Desde 3 · Propuesta enviada la transición a Ganada no pide la venta POS en el
+		# workflow; solo los requisitos de Ganada del hook, que sí ven la venta en memoria.
+		# No prueba el caso de Calificar (ver la prueba siguiente).
 		op = poner_en(crear_oportunidad(), "prop")
 		factura = crear_factura(op)
 		op.set(CAMPO_FACTURA_POS, factura.name)
@@ -551,17 +553,18 @@ class TestGanadaConVentaPOS(BaseCRMProyectos):
 		self.assertEqual(op.status, "Converted")
 
 	def test_venta_pos_y_ganada_desde_calificar_en_el_mismo_guardado(self):
-		# La transición del workflow a Ganada con venta POS mira el documento en memoria
-		# (doc.custom_factura_pos), así que desde Calificar también pasa en un solo guardado.
-		op = crear_oportunidad()
+		# Desde Calificar la transición a Ganada exige la venta POS, y Frappe evalúa la
+		# condición sobre la versión guardada (sin venta): el hook ignora el cambio de etapa
+		# y guarda la venta. Ganada va en un segundo guardado (vincular_factura_pos).
+		op = poner_en(crear_oportunidad(), CFG.inicial.clave)
 		factura = crear_factura(op)
 		op.set(CAMPO_FACTURA_POS, factura.name)
 		op.set(CAMPO_ETAPA, CFG.etapa("ganada").valor)
 		op.save()
 		op.reload()
 		self.assertEqual(op.get(CAMPO_FACTURA_POS), factura.name)
-		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
-		self.assertEqual(op.status, "Converted")
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.inicial.valor)
+		self.assertNotEqual(op.status, "Converted")
 
 	# ALTO-2 · Una venta, una oportunidad, también con peticiones simultáneas.
 

@@ -17,6 +17,7 @@ from crm_dashboard_v3.crm_tableros.common import acciones, flujo
 from crm_dashboard_v3.crm_tableros.common.campos import crear_campos
 from crm_dashboard_v3.crm_tableros.common.contexto import Contexto
 from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA
+from crm_dashboard_v3.crm_tableros.migracion.workflow import NUEVO
 from crm_dashboard_v3.crm_tableros.proyectos.config import PROYECTOS, TABLERO
 
 CFG = TABLERO.etapas
@@ -280,9 +281,11 @@ class BaseCRMProyectos(FrappeTestCase):
 			asegurar("Quotation Lost Reason", motivo, order_lost_reason=motivo)
 		PRUEBA["establecimiento"] = _establecimiento_de_prueba()
 		# Las pruebas mueven etapas a través del workflow compartido real del sitio.
-		if not flujo.estado_existe(CFG.inicial.valor):
+		# estado_existe da True si ningún workflow controla la etapa: se exige el workflow.
+		if not flujo._workflow_de_etapa("Opportunity") or not flujo.estado_existe(CFG.inicial.valor):
 			raise unittest.SkipTest(
-				"El workflow activo no tiene las etapas nuevas: ejecuta migracion.workflow.instalar() en el sitio de pruebas."
+				"No hay un workflow activo de Opportunity sobre embudo_state_v2 con las etapas nuevas"
+				f" («{NUEVO}»): ejecuta migracion.workflow.instalar() en el sitio de pruebas."
 			)
 		if PRUEBA["establecimiento"] not in TABLERO.establecimientos:
 			raise unittest.SkipTest(
