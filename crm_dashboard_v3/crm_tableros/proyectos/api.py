@@ -500,7 +500,11 @@ def vincular_factura_pos(nombre: str, factura: str):
 	ligada = consultas.oportunidades_de_facturas_pos([factura]).get(factura)
 	if ligada and ligada != doc.name:
 		frappe.throw(_("La venta POS {0} ya está vinculada a {1}.").format(factura, ligada), title=_("Venta POS"))
+	# Primero se guarda el vínculo: Frappe evalúa la condición de la transición a Ganada
+	# (1, 2 y En pausa exigen la venta POS) sobre la oportunidad ya guardada. Si el cambio
+	# de etapa falla, la petición se revierte completa.
 	doc.set(CAMPO_FACTURA_POS, factura)
+	doc.save()
 	ganada = TABLERO.etapas.por_status("Converted")
 	acciones.cambiar_etapa(doc, ganada, TABLERO.etapas)
 	return {"name": doc.name, "status": doc.status, "etapa": ganada.titulo}
