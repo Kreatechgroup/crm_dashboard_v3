@@ -36,6 +36,11 @@ def bloqueo(doc, destino: str, actual: str | None = None) -> str | None:
 	Si no se da ``actual``, se toma el valor de la etapa que tiene ``doc`` (debe ser
 	todavía el guardado en la base). Devuelve None si la transición está permitida o
 	si ningún workflow controla la etapa.
+
+	Como ``frappe.model.workflow.validate_workflow``, la condición de la transición se
+	evalúa sobre la versión **guardada** (``doc.get_doc_before_save()``) cuando se está
+	guardando, no sobre los cambios en memoria: un campo que la condición exige (p. ej.
+	la venta POS para Ganada desde Calificar) debe estar guardado antes, en otro guardado.
 	"""
 	workflow = _workflow_de_etapa(doc.doctype)
 	actual = doc.get(CAMPO_ETAPA) if actual is None else actual
@@ -47,9 +52,10 @@ def bloqueo(doc, destino: str, actual: str | None = None) -> str | None:
 	# Mismo criterio que frappe.model.workflow.get_transitions (estado, rol y condición),
 	# sin su chequeo de lectura: el hook también corre en guardados con ignore_permissions.
 	roles = set(frappe.get_roles())
+	guardado = doc.get_doc_before_save() or doc
 	for t in workflow.transitions:
 		if t.state == actual and t.next_state == destino and t.allowed in roles:
-			if is_transition_condition_satisfied(t, doc):
+			if is_transition_condition_satisfied(t, guardado):
 				return None
 	return _mensaje(workflow.name, actual, destino)
 

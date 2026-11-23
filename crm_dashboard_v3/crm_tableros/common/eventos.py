@@ -8,7 +8,10 @@ scripts existentes del ERP— y **nunca** hace fallar un guardado por la etapa:
 
 - si un script escribe en una oportunidad de tablero un valor que el workflow no
   permite (p. ej. «Presentar cotización» desde Quotation-Client o Integración de
-  costos), se ignora ese cambio de etapa y se guarda lo demás;
+  costos), se ignora ese cambio de etapa y se guarda lo demás. Como en Frappe, la
+  condición de la transición se mira sobre la versión guardada: venta POS y Ganada
+  desde Calificar en un mismo guardado guardan la venta y dejan la etapa (Ganada va
+  en un segundo guardado, como en ``vincular_factura_pos``);
 - la probabilidad es la de la etapa;
 - Ganada ↔ Converted y Perdida ↔ Lost cuando cambia la etapa;
 - un cambio de status hecho desde ERPNext (declarar perdida) arrastra la etapa si

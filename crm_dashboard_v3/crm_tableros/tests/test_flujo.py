@@ -28,14 +28,18 @@ class _Doc(frappe._dict):
 	def is_new(self):
 		return False
 
+	def get_doc_before_save(self):
+		# frappe._dict guarda los atributos como claves: «doc.guardado = x» queda aquí.
+		return self.get("guardado")
+
 
 class TestBloqueoWorkflow(FrappeTestCase):
-	def _bloqueo(self, actual, destino, roles=(ROL,), workflow=True):
+	def _bloqueo(self, actual, destino, roles=(ROL,), workflow=True, doc=None):
 		with (
 			patch.object(flujo, "_workflow_de_etapa", return_value=_workflow() if workflow else None),
 			patch("frappe.get_roles", return_value=list(roles)),
 		):
-			return flujo.bloqueo(_Doc({CAMPO_ETAPA: actual}), destino)
+			return flujo.bloqueo(doc or _Doc({CAMPO_ETAPA: actual}), destino)
 
 	def test_transicion_existente_para_el_rol(self):
 		self.assertIsNone(self._bloqueo("Investigar al cliente", "Clasificar"))
@@ -54,3 +58,22 @@ class TestBloqueoWorkflow(FrappeTestCase):
 
 	def test_sin_workflow_no_hay_bloqueo(self):
 		self.assertIsNone(self._bloqueo("Investigar al cliente", "Tomar requerimiento", workflow=False))
+
+	def test_condicion_sobre_la_version_guardada(self):
+		# Como validate_workflow de Frappe: durante un guardado la condición mira
+		# doc.get_doc_before_save(), no los cambios en memoria.
+		doc = _Doc({CAMPO_ETAPA: "Investigar al cliente", "pos": "FAC-1"})
+		doc.guardado = _Doc({CAMPO_ETAPA: "Investigar al cliente", "pos": None})
+		vistos = []
+
+		def condicion(t, d):
+			vistos.append(d)
+			return bool(d.get("pos"))
+
+		with patch.object(flujo, "is_transition_condition_satisfied", side_effect=condicion):
+			self.assertTrue(self._bloqueo(None, "Clasificar", doc=doc))
+			self.assertIs(vistos[-1], doc.guardado)
+			# Fuera de un guardado (sin versión anterior) se mira el documento.
+			doc.guardado = None
+			self.assertIsNone(self._bloqueo(None, "Clasificar", doc=doc))
+			self.assertIs(vistos[-1], doc)
