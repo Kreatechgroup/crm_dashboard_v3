@@ -103,6 +103,7 @@
 .crm-tarjeta-extra { display: block; font-size: 11px; margin-top: 3px; font-weight: 600; color: var(--crm-texto-2); }
 .crm-columna-ganada .crm-tarjeta-extra { color: var(--crm-verde); }
 .crm-columna-perdida .crm-tarjeta-extra { color: var(--crm-rojo); }
+.crm-columna-ganada .crm-tarjeta-extra.crm-tarjeta-revision { color: var(--crm-rojo); }
 
 /* Mi día (sección de todo el ancho) y panel deslizante */
 .crm-panel h2,

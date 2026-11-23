@@ -16,6 +16,10 @@ Condiciones de la factura:
 
 Condiciones de la oportunidad: abierta (no Converted, Lost ni Closed), sin otra venta
 POS y sin órdenes de venta.
+
+Si la venta se cancela o se devuelve después de ganar, la oportunidad **no** se toca
+(decisión del negocio): se deja un comentario y el tablero la marca para revisión.
+Quien cancela o devuelve queda como autor del comentario (Frappe lo muestra con su nombre).
 """
 
 import frappe
@@ -147,3 +151,87 @@ def mensaje_de_duplicado(factura: str) -> str:
 	if ligada:
 		return _("La venta POS {0} ya está vinculada a {1}.").format(factura, ligada)
 	return _("La venta POS {0} se acaba de vincular a otra oportunidad.").format(factura)
+
+
+# ---------------------------------------------------------------------------
+# Venta cancelada o devuelta después de ganar: comentario y marca para revisión
+# ---------------------------------------------------------------------------
+
+
+def para_revision(facturas: list[str]) -> dict[str, str]:
+	"""Factura POS -> por qué su oportunidad está para revisión (cancelada o con devolución).
+
+	SQL directo: solo se consultan las facturas ya ligadas a oportunidades que el
+	usuario puede ver; se devuelve el motivo, no datos de la factura.
+	"""
+	if not facturas:
+		return {}
+	filas = frappe.db.sql(
+		"""
+		select si.name, si.docstatus,
+			(select dev.name from `tabSales Invoice` dev
+				where dev.return_against = si.name and dev.is_return = 1 and dev.docstatus = 1
+				order by dev.posting_date, dev.name limit 1) as devolucion
+		from `tabSales Invoice` si
+		where si.name in %(facturas)s
+		""",
+		{"facturas": tuple(facturas)},
+		as_dict=True,
+	)
+	motivos = {}
+	for f in filas:
+		if f.docstatus == 2:
+			motivos[f.name] = _("Venta POS {0} cancelada").format(f.name)
+		elif f.devolucion:
+			motivos[f.name] = _("Venta POS {0} devuelta (nota de crédito {1})").format(f.name, f.devolucion)
+	return motivos
+
+
+def _comentar(factura: str, texto: str):
+	"""Comentario en cada oportunidad ganada con ``factura``.
+
+	ignore_permissions: quien cancela o devuelve en caja no suele tener permiso sobre la
+	oportunidad, y el comentario es solo un registro para el asesor y su jefe.
+	"""
+	for oportunidad in consultas.oportunidades_de_facturas_pos([factura]).values():
+		frappe.get_doc(
+			{
+				"doctype": "Comment",
+				"comment_type": "Comment",
+				"reference_doctype": "Opportunity",
+				"reference_name": oportunidad,
+				"content": texto,
+			}
+		).insert(ignore_permissions=True)
+
+
+def avisar_cancelacion(doc, method=None):
+	"""Hook on_cancel de Sales Invoice: la venta POS (o su devolución) se canceló."""
+	if doc.get("is_return") and doc.get("return_against"):
+		_comentar(
+			doc.return_against,
+			_("Se canceló la devolución {0} de la venta POS {1}. La oportunidad no se modificó.").format(
+				doc.name, doc.return_against
+			),
+		)
+		return
+	_comentar(
+		doc.name,
+		_(
+			"La venta POS {0} con la que se ganó esta oportunidad se canceló. La oportunidad no se "
+			"modificó: queda para revisión en el tablero."
+		).format(doc.name),
+	)
+
+
+def avisar_devolucion(doc, method=None):
+	"""Hook on_submit de Sales Invoice: devolución (nota de crédito) contra una venta POS ligada."""
+	if not (doc.get("is_return") and doc.get("return_against")):
+		return
+	_comentar(
+		doc.return_against,
+		_(
+			"Se registró la devolución {0} contra la venta POS {1} con la que se ganó esta oportunidad. "
+			"La oportunidad no se modificó: queda para revisión en el tablero."
+		).format(doc.name, doc.return_against),
+	)

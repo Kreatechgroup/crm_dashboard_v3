@@ -109,6 +109,8 @@ def get_oportunidad(nombre: str, pagina_historial: int = 0):
 		ultima = max(ultima, getdate(rel.ultima_actividad.created_on))
 	cotizacion_vigente = next((q for q in rel.cotizaciones_enviadas if q.name == cotizacion_para_orden), None)
 
+	factura_pos = doc.get(CAMPO_FACTURA_POS)
+
 	meta_op = frappe.get_meta("Opportunity")
 	meta_act = frappe.get_meta("Opportunity Activity")
 	return {
@@ -147,7 +149,10 @@ def get_oportunidad(nombre: str, pagina_historial: int = 0):
 		"cotizacion_para_orden": cotizacion_para_orden,
 		"monto_cotizacion_para_orden": flt(cotizacion_vigente.base_grand_total) if cotizacion_vigente else 0,
 		"ordenes_del_cliente": _ordenes_del_cliente(doc) if not cerrada else [],
-		"factura_pos": etapas.factura_pos_vinculada(doc),
+		# El vínculo se muestra aunque la venta se haya cancelado o devuelto (no se quita):
+		# en ese caso la oportunidad queda para revisión.
+		"factura_pos": factura_pos,
+		"revision_pos": venta_pos.para_revision([factura_pos]).get(factura_pos) if factura_pos else None,
 		"facturas_pos": _facturas_pos_para_vincular(doc)
 		if not cerrada and not venta_pos.motivo_oportunidad_cerrada(doc)
 		else [],

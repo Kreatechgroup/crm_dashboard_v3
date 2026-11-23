@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate
 
-from crm_dashboard_v3.crm_tableros.common import acciones, consultas, etapas, metas, ventas
+from crm_dashboard_v3.crm_tableros.common import acciones, consultas, etapas, metas, venta_pos, ventas
 from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_FECHA_RETOMAR
 from crm_dashboard_v3.crm_tableros.common.formato import ritmo, semaforo_dias
 from crm_dashboard_v3.crm_tableros.proyectos.config import PROYECTOS
@@ -29,6 +29,9 @@ def construir(t, ctx, asesores: list, con_resumen: bool = False) -> dict:
 
 	ops = [preparar(o) for o in abiertas]
 	cer = [preparar(o) for o in cerradas]
+	revision_pos = _revision_pos(usuarios, t, ctx)
+	for o in cer:
+		o.revision_pos = revision_pos.get(o.name)
 	vencidas = consultas.cotizaciones_vencidas([o.name for o in ops if not o.incoherente], ctx.hoy)
 	op_de = {o.name: o for o in ops}
 	for v in vencidas:
@@ -64,6 +67,8 @@ def construir(t, ctx, asesores: list, con_resumen: bool = False) -> dict:
 			"cantidad": len(grupo["incoherentes"]),
 			"nombres": [o.name for o in grupo["incoherentes"]],
 		},
+		# Ganadas con una venta POS que después se canceló o devolvió (no se modifican).
+		"revision_pos": {"cantidad": len(revision_pos), "nombres": sorted(revision_pos)},
 		"motivos": acciones.motivos_de_perdida_cotizacion(cfg),
 		"umbral_escalar": cfg.umbral_escalar,
 		"dias_verde_max": cfg.dias_verde_max,
@@ -74,6 +79,13 @@ def construir(t, ctx, asesores: list, con_resumen: bool = False) -> dict:
 	if con_resumen:
 		resultado["resumen"] = _resumen(asesores, ops, vencidas, ventas_por_asesor, ctx, cfg)
 	return resultado
+
+
+def _revision_pos(usuarios, t, ctx) -> dict[str, str]:
+	"""Oportunidad ganada -> motivo de revisión, si su venta POS se canceló o se devolvió."""
+	ganadas = consultas.ganadas_con_venta_pos(usuarios, t, ctx.company)
+	motivos = venta_pos.para_revision(list(set(ganadas.values())))
+	return {op: motivos[f] for op, f in ganadas.items() if f in motivos}
 
 
 def meta_y_facturado(asesor, t, ctx) -> dict:
@@ -244,6 +256,8 @@ def _tarjeta(o, mostrar_asesor: bool) -> dict:
 		extra = _("Retomar el {0}").format(o.fecha_retomar) if o.fecha_retomar else _("Sin fecha para retomar")
 	elif o.status == "Lost":
 		extra = _("Motivo: {0}").format(o.lost_reason or _("sin motivo"))
+	elif o.get("revision_pos"):
+		extra = _("Para revisión: {0}").format(o.revision_pos)
 	return {
 		"name": o.name,
 		"cliente": o.cliente,
@@ -259,6 +273,7 @@ def _tarjeta(o, mostrar_asesor: bool) -> dict:
 		"asesor": o.asesor if mostrar_asesor else "",
 		"proximo": o.proximo,
 		"extra": extra,
+		"revision": bool(o.get("revision_pos")),
 	}
 
 

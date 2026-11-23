@@ -106,6 +106,27 @@ def oportunidades_cerradas(usuarios: list[str], t: ConfigTablero, company: str |
 	)
 
 
+def ganadas_con_venta_pos(usuarios: list[str], t: ConfigTablero, company: str | None) -> dict[str, str]:
+	"""Oportunidad ganada -> su venta POS vinculada (todas, no solo las del mes: una
+	venta se puede cancelar o devolver tiempo después de ganar)."""
+	if not usuarios:
+		return {}
+	return dict(
+		frappe.get_list(
+			"Opportunity",
+			filters=[
+				*_filtros_tablero(t, company),
+				["Opportunity", "status", "=", "Converted"],
+				["Opportunity", CAMPO_FACTURA_POS, "is", "set"],
+			],
+			or_filters=_filtro_usuarios(usuarios),
+			fields=["name", CAMPO_FACTURA_POS],
+			as_list=True,
+			limit_page_length=0,
+		)
+	)
+
+
 def oportunidades_creadas(usuarios: list[str], t: ConfigTablero, company: str | None, desde, hasta) -> list:
 	"""Oportunidades creadas en el rango (para conteos por mes y estado)."""
 	if not usuarios:

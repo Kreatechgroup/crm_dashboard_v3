@@ -267,4 +267,9 @@ doc_events = {
 	"Sales Order": {
 		"on_submit": "crm_dashboard_v3.crm_tableros.common.eventos.sincronizar_ganadas_desde_orden",
 	},
+	# Venta POS cancelada o devuelta después de ganar: comentario en la oportunidad (no se modifica).
+	"Sales Invoice": {
+		"on_submit": "crm_dashboard_v3.crm_tableros.common.venta_pos.avisar_devolucion",
+		"on_cancel": "crm_dashboard_v3.crm_tableros.common.venta_pos.avisar_cancelacion",
+	},
 }

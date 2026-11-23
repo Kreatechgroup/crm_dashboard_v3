@@ -177,6 +177,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			<div class="crm-principal">
 				${this.datos.resumen ? this.html_resumen() : ""}
 				${this.html_incoherentes()}
+				${this.html_revision_pos()}
 				<section aria-label="${this.e(this.titulo_mi_dia())}" class="crm-card crm-mi-dia" aria-live="polite"></section>
 				<section aria-label="${__("Embudo")}" class="crm-card crm-embudo">${this.html_embudo()}</section>
 				<div class="crm-cerradas-wrap">${this.html_cerradas()}</div>
@@ -324,6 +325,19 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				)}</button></p>`;
 	}
 
+	// Ganadas con venta POS cancelada o devuelta: no se modifican, solo se avisan.
+	html_revision_pos() {
+		const rev = this.datos.revision_pos;
+		if (!rev || !rev.cantidad) return "";
+		return `
+			<p class="crm-nota"><strong>${__("Para revisión:")}</strong>
+				<button type="button" class="crm-boton-texto" data-accion="erp" data-doctype="Opportunity" data-nombres="revision_pos">${this.e(
+					__("{0} con venta POS cancelada o devuelta después de ganar. No se modificaron; revísalas.", [
+						crm_tableros.plural(rev.cantidad, __("oportunidad"), __("oportunidades")),
+					])
+				)}</button></p>`;
+	}
+
 	// Nombres de los registros que forman un número (para abrir la lista de ERPNext).
 	nombres_de(clave, fila) {
 		const d = this.datos;
@@ -354,6 +368,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				vigentes: k.vigentes.nombres,
 				vencidas: k.vencidas.nombres,
 				incoherentes: d.incoherentes.nombres,
+				revision_pos: d.revision_pos.nombres,
 			}[clave] || []
 		);
 	}
@@ -482,7 +497,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 							<button type="button" class="crm-tarjeta" data-accion="abrir" data-name="${this.e(t.name)}" aria-current="${this.estado.sel === t.name}">
 								<span class="crm-tarjeta-cliente" style="display:block">${this.e(t.cliente)}</span>
 								<span class="crm-tarjeta-monto" style="display:block;margin-top:3px">${t.monto > 0 ? this.e(this.dinero(t.monto)) : __("Sin monto")}</span>
-								<span class="crm-tarjeta-extra">${this.e(t.extra || t.etapa)}</span>
+								<span class="crm-tarjeta-extra ${t.revision ? "crm-tarjeta-revision" : ""}">${this.e(t.extra || t.etapa)}</span>
 							</button>`
 										)
 										.join("")
@@ -799,6 +814,13 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			</div>
 			<div class="crm-op-meta">${__("Asesor:")} <strong>${this.e(op.asesor)}</strong> · ${__("Modelo:")} <strong>${this.e(op.modelo)}</strong></div>
 			${op.incoherente ? `<div class="crm-alerta" style="margin-top:8px">${this.e(__("Etapa {0} con status {1}: corrígela en el formulario.", [op.etapa.titulo, op.status]))}</div>` : ""}
+			${
+				op.revision_pos
+					? `<div class="crm-alerta" style="margin-top:8px">${this.e(
+							__("Para revisión: {0}. La oportunidad no se modificó.", [op.revision_pos])
+						)}</div>`
+					: ""
+			}
 			<button type="button" class="crm-boton-acento" data-accion="tab" data-valor="actividad">${__("Opportunity Activity")}</button>
 			<div role="tablist" aria-label="${__("Secciones de la oportunidad")}" class="crm-tabs">${tabs}</div>
 			${cuerpo}`;
