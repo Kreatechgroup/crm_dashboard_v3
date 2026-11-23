@@ -35,6 +35,9 @@ from crm_dashboard_v3.crm_tableros.tests.utilidades import (
 	poner_en,
 )
 
+# Usuario que no es el asesor de las oportunidades de prueba (solo se compara el correo).
+OTRO_ASESOR = "otro.asesor.prueba@example.com"
+
 
 def _asesor_de_prueba():
 	return Asesor(None, "Asesor de prueba", frappe.session.user, {})
@@ -526,6 +529,60 @@ class TestGanadaConVentaPOS(BaseCRMProyectos):
 		self.assertEqual(op.status, "Converted")
 		self.assertEqual(flt(op.probability), 100)
 		self.assertEqual(op.get(CAMPO_FACTURA_POS), factura.name)
+
+	def _vincular_y_verificar_ganada(self, clave):
+		# El workflow permite Ganada desde 2 y En pausa solo con la venta POS guardada
+		# (migracion.workflow.transiciones_de): vincular_factura_pos la guarda primero.
+		op = poner_en(crear_oportunidad(), clave)
+		factura = crear_factura(op)
+		self.assertIn(factura.name, self._candidatas(op))
+		api.vincular_factura_pos(op.name, factura.name)
+		op.reload()
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
+		self.assertEqual(op.status, "Converted")
+		self.assertEqual(flt(op.probability), 100)
+		self.assertEqual(op.get(CAMPO_FACTURA_POS), factura.name)
+
+	def test_vincular_venta_pos_marca_ganada_desde_requerimiento(self):
+		self._vincular_y_verificar_ganada("req")
+
+	def test_vincular_venta_pos_marca_ganada_desde_pausa(self):
+		self._vincular_y_verificar_ganada("pausa")
+
+	def _rechazada(self, op, factura):
+		"""La factura no es candidata y vincularla por nombre falla sin tocar la oportunidad."""
+		self.assertNotIn(factura.name, self._candidatas(op))
+		self.assertNotIn(factura.name, [f["name"] for f in api.get_oportunidad(op.name)["facturas_pos"]])
+		with self.assertRaises(frappe.ValidationError):
+			api.vincular_factura_pos(op.name, factura.name)
+		campos = ["status", CAMPO_ETAPA, CAMPO_FACTURA_POS]
+		datos = frappe.db.get_value("Opportunity", op.name, campos, as_dict=True)
+		self.assertNotEqual(datos.status, "Converted")
+		self.assertNotEqual(datos.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
+		self.assertFalse(datos.get(CAMPO_FACTURA_POS))
+
+	def test_venta_pos_de_otro_asesor_no_es_candidata(self):
+		# Oportunidad desde un lead sin cliente: solo valdrían las ventas del propio asesor.
+		op = crear_oportunidad()
+		factura = crear_factura(op)
+		self.assertIn(factura.name, self._candidatas(op))
+		frappe.db.set_value("Sales Invoice", factura.name, "owner", OTRO_ASESOR)
+		self._rechazada(op, factura)
+
+	def test_venta_pos_de_otro_cliente_no_es_candidata(self):
+		# Venta capturada por otro usuario: solo vale si es del cliente de la oportunidad.
+		filtros = {"disabled": 0} if frappe.get_meta("Customer").has_field("disabled") else {}
+		clientes = frappe.get_all("Customer", filters=filtros, pluck="name", limit=2, order_by="name")
+		if len(clientes) < 2:
+			self.skipTest("El sitio de pruebas necesita al menos dos clientes.")
+		cliente, otro_cliente = clientes
+		op = crear_oportunidad(opportunity_from="Customer", party_name=cliente)
+		factura = crear_factura(op)
+		frappe.db.set_value("Sales Invoice", factura.name, {"owner": OTRO_ASESOR, "customer": cliente})
+		# Control: del mismo cliente sí es candidata aunque la haya capturado otro usuario.
+		self.assertIn(factura.name, self._candidatas(op))
+		frappe.db.set_value("Sales Invoice", factura.name, "customer", otro_cliente)
+		self._rechazada(op, factura)
 
 	def test_factura_que_no_es_pos_no_se_vincula(self):
 		op = crear_oportunidad()
