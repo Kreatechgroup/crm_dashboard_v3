@@ -15,7 +15,8 @@ scripts existentes del ERP— y **nunca** hace fallar un guardado por la etapa:
   el workflow lo permite;
 - no se usa un motivo de pérdida genérico;
 - pasar a Ganada fuera del tablero exige los requisitos de Ganada (si faltan, se
-  ignora el cambio de etapa, como con un valor que el workflow no permite);
+  ignora el cambio de etapa, como con un valor que el workflow no permite); lo mismo
+  con un status Converted puesto a mano: se regresa al anterior;
 - la venta POS vinculada se valida siempre (``venta_pos.validar_vinculo``): ese
   error sí detiene el guardado, porque es un vínculo inválido, no una etapa.
 
@@ -62,6 +63,7 @@ def validar_oportunidad(doc, method=None):
 				)
 
 	etapa_cambio = anterior is None or anterior.get(CAMPO_ETAPA) != doc.get(CAMPO_ETAPA)
+	ganada_avisada = False
 
 	# Un script escribió una etapa que el workflow no permite: se ignora ese cambio.
 	# Lo mismo si la lleva a Ganada (acción del workflow en el formulario, API) sin
@@ -72,6 +74,7 @@ def validar_oportunidad(doc, method=None):
 			etapa_cambio = False
 		elif _faltan_para_ganar(doc, cfg):
 			_avisar_ganada_revertida(doc, cfg)
+			ganada_avisada = True
 			doc.set(CAMPO_ETAPA, anterior.get(CAMPO_ETAPA))
 			etapa_cambio = False
 
@@ -83,6 +86,15 @@ def validar_oportunidad(doc, method=None):
 	if destino and not flujo.bloqueo(doc, destino.valor) and not _faltan_para_ganar(doc, cfg, destino):
 		doc.set(CAMPO_ETAPA, destino.valor)
 		etapa_cambio = True
+	elif status_cambio and doc.status == "Converted" and not doc.flags.get(FLAG_TABLERO):
+		# Converted puesto a mano (formulario, API) sin orden de venta ni venta POS: no es
+		# una ganada. Se regresa el status, como con la etapa. ERPNext y marcar_ganada
+		# escriben Converted con db_set / set_value, sin pasar por aquí.
+		ganada = cfg.por_status("Converted")
+		if ganada and _faltan_para_ganar(doc, cfg, ganada):
+			if not ganada_avisada:
+				_avisar_ganada_revertida(doc, cfg)
+			doc.status = anterior.status
 
 	etapa = cfg.por_valor(doc.get(CAMPO_ETAPA))
 	if not etapa:

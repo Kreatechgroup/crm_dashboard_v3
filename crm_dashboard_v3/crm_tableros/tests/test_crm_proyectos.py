@@ -299,6 +299,36 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		op.save()
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("perdida").valor)
 
+	# NUEVO-1 · Converted puesto a mano sin orden de venta ni venta POS no es una ganada.
+
+	def test_converted_a_mano_sin_requisitos_se_revierte(self):
+		op = poner_en(crear_oportunidad(), "prop")
+		op.status = "Converted"
+		op.save()
+		op.reload()
+		self.assertEqual(op.status, "Open")
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("prop").valor)
+
+	def test_converted_y_ganada_a_mano_sin_requisitos_se_revierten(self):
+		op = poner_en(crear_oportunidad(), "prop")
+		op.status = "Converted"
+		op.set(CAMPO_ETAPA, CFG.etapa("ganada").valor)
+		op.save()
+		op.reload()
+		self.assertEqual(op.status, "Open")
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("prop").valor)
+
+	def test_converted_a_mano_con_venta_pos_arrastra_la_etapa(self):
+		op = poner_en(crear_oportunidad(), "prop")
+		factura = crear_factura(op)
+		op.set(CAMPO_FACTURA_POS, factura.name)
+		op.save()
+		op.status = "Converted"
+		op.save()
+		op.reload()
+		self.assertEqual(op.status, "Converted")
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
+
 	def test_especificar_motivo_no_es_valido(self):
 		op = crear_oportunidad()
 		with self.assertRaises(frappe.ValidationError):
@@ -503,6 +533,33 @@ class TestGanadaConVentaPOS(BaseCRMProyectos):
 		op.set(CAMPO_ETAPA, CFG.etapa("ganada").valor)
 		op.save()
 		op.reload()
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
+		self.assertEqual(op.status, "Converted")
+
+	# NUEVO-3 · Venta POS y etapa Ganada en el mismo guardado por API.
+
+	def test_venta_pos_y_ganada_en_el_mismo_guardado(self):
+		# Se valida primero el vínculo y después la etapa con la venta ya puesta: queda ganada.
+		op = poner_en(crear_oportunidad(), "prop")
+		factura = crear_factura(op)
+		op.set(CAMPO_FACTURA_POS, factura.name)
+		op.set(CAMPO_ETAPA, CFG.etapa("ganada").valor)
+		op.save()
+		op.reload()
+		self.assertEqual(op.get(CAMPO_FACTURA_POS), factura.name)
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
+		self.assertEqual(op.status, "Converted")
+
+	def test_venta_pos_y_ganada_desde_calificar_en_el_mismo_guardado(self):
+		# La transición del workflow a Ganada con venta POS mira el documento en memoria
+		# (doc.custom_factura_pos), así que desde Calificar también pasa en un solo guardado.
+		op = crear_oportunidad()
+		factura = crear_factura(op)
+		op.set(CAMPO_FACTURA_POS, factura.name)
+		op.set(CAMPO_ETAPA, CFG.etapa("ganada").valor)
+		op.save()
+		op.reload()
+		self.assertEqual(op.get(CAMPO_FACTURA_POS), factura.name)
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
 		self.assertEqual(op.status, "Converted")
 
