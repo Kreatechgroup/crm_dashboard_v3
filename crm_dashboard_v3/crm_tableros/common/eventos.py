@@ -19,7 +19,8 @@ scripts existentes del ERP— y **nunca** hace fallar un guardado por la etapa:
 - no se usa un motivo de pérdida genérico;
 - pasar a Ganada fuera del tablero exige los requisitos de Ganada (si faltan, se
   ignora el cambio de etapa, como con un valor que el workflow no permite); lo mismo
-  con un status Converted puesto a mano: se regresa al anterior;
+  con un status Converted puesto a mano: si faltan los requisitos o el workflow no
+  permite pasar a Ganada, se regresa al anterior (status Converted ⇔ etapa Ganada);
 - la venta POS vinculada se valida siempre (``venta_pos.validar_vinculo``): ese
   error sí detiene el guardado, porque es un vínculo inválido, no una etapa.
 
@@ -90,13 +91,19 @@ def validar_oportunidad(doc, method=None):
 		doc.set(CAMPO_ETAPA, destino.valor)
 		etapa_cambio = True
 	elif status_cambio and doc.status == "Converted" and not doc.flags.get(FLAG_TABLERO):
-		# Converted puesto a mano (formulario, API) sin orden de venta ni venta POS: no es
-		# una ganada. Se regresa el status, como con la etapa. ERPNext y marcar_ganada
-		# escriben Converted con db_set / set_value, sin pasar por aquí.
+		# Converted puesto a mano (formulario, API) sin orden de venta ni venta POS, o con
+		# ellas pero sin que el workflow permita pasar a Ganada (la etapa no se arrastró):
+		# no es una ganada. Se regresa el status, como con la etapa, para que Converted y
+		# Ganada sigan juntos. ERPNext y marcar_ganada escriben Converted con db_set /
+		# set_value, sin pasar por aquí.
 		ganada = cfg.por_status("Converted")
 		if ganada and _faltan_para_ganar(doc, cfg, ganada):
 			if not ganada_avisada:
 				_avisar_ganada_revertida(doc, cfg)
+			doc.status = anterior.status
+		elif ganada and flujo.bloqueo(doc, ganada.valor):
+			if not ganada_avisada:
+				_avisar_ganada_bloqueada(doc, ganada)
 			doc.status = anterior.status
 
 	etapa = cfg.por_valor(doc.get(CAMPO_ETAPA))
@@ -131,6 +138,17 @@ def _avisar_ganada_revertida(doc, cfg):
 		_("La oportunidad {0} no pasó a {1}: falta {2}. Se guardaron los demás cambios.").format(
 			doc.name, ganada.titulo, ", ".join(faltantes(doc, ganada, cfg))
 		),
+		title=_("Etapa de la oportunidad"),
+		indicator="orange",
+	)
+
+
+def _avisar_ganada_bloqueada(doc, ganada):
+	frappe.msgprint(
+		_(
+			"La oportunidad {0} no pasó a {1}: el workflow no lo permite desde «{2}». Gánala desde el "
+			"tablero CRM Proyectos o con la orden de venta. Se guardaron los demás cambios."
+		).format(doc.name, ganada.titulo, doc.get(CAMPO_ETAPA)),
 		title=_("Etapa de la oportunidad"),
 		indicator="orange",
 	)

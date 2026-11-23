@@ -329,6 +329,36 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		self.assertEqual(op.status, "Converted")
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
 
+	# NUEVO-5 · Converted a mano con requisitos, pero el workflow no permite pasar a Ganada.
+
+	def test_converted_a_mano_bloqueado_por_el_workflow_se_revierte(self):
+		op = poner_en(crear_oportunidad(), "prop")
+		factura = crear_factura(op)
+		op.set(CAMPO_FACTURA_POS, factura.name)
+		op.save()
+		frappe.clear_messages()
+		op.status = "Converted"
+		with patch.object(flujo, "bloqueo", return_value="El workflow no permite pasar a Ganada"):
+			op.save()
+		op.reload()
+		self.assertEqual(op.status, "Open")
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("prop").valor)
+		self.assertTrue(any("CRM Proyectos" in str(m) for m in frappe.message_log))
+
+	def test_converted_y_venta_pos_desde_calificar_en_el_mismo_guardado(self):
+		# Requisitos cumplidos en memoria (venta POS), pero el workflow mira la versión
+		# guardada (sin venta) y no permite Ganada desde Calificar: se guarda la venta y
+		# el status vuelve a Open, junto con la etapa que no se movió.
+		op = poner_en(crear_oportunidad(), CFG.inicial.clave)
+		factura = crear_factura(op)
+		op.set(CAMPO_FACTURA_POS, factura.name)
+		op.status = "Converted"
+		op.save()
+		op.reload()
+		self.assertEqual(op.get(CAMPO_FACTURA_POS), factura.name)
+		self.assertEqual(op.status, "Open")
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.inicial.valor)
+
 	def test_especificar_motivo_no_es_valido(self):
 		op = crear_oportunidad()
 		with self.assertRaises(frappe.ValidationError):
