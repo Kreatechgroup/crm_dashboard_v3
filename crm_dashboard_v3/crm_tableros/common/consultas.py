@@ -10,6 +10,7 @@ from frappe.utils import flt, getdate
 
 from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_ETAPA,
+	CAMPO_FACTURA_POS,
 	CAMPO_FECHA_PROXIMO_PASO,
 	CAMPO_FECHA_RETOMAR,
 	CAMPO_PROXIMO_PASO,
@@ -327,3 +328,20 @@ def cadena_de_ordenes(ordenes: list[str]) -> dict[str, dict]:
 		if f.parent not in cadena[f.sales_order]["facturas"]:
 			cadena[f.sales_order]["facturas"].append(f.parent)
 	return cadena
+
+
+def oportunidades_de_facturas_pos(facturas: list[str]) -> dict[str, str]:
+	"""Factura POS -> oportunidad que se ganó con ella (campo «Venta POS vinculada»).
+
+	get_all: solo nombres de oportunidades ligadas a facturas que ya se atribuyeron al asesor.
+	"""
+	if not facturas:
+		return {}
+	return dict(
+		frappe.get_all(
+			"Opportunity",
+			filters={CAMPO_FACTURA_POS: ["in", facturas]},
+			fields=[CAMPO_FACTURA_POS, "name"],
+			as_list=True,
+		)
+	)

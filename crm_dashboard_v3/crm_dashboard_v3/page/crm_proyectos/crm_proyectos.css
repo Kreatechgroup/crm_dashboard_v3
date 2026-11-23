@@ -195,8 +195,8 @@
 
 .crm-ganar { border: 2px solid var(--crm-verde); border-radius: 10px; padding: 12px; display: grid; gap: 10px; background: var(--crm-card); }
 .crm-ganar-tit { font-size: 14px; font-weight: 700; color: var(--crm-verde-tx); }
-.crm-ganar-modos { display: flex; gap: 6px; }
-.crm-ganar-modo { flex: 1; min-height: 40px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1px solid var(--crm-input-borde); background: var(--crm-card); color: var(--crm-texto-2); }
+.crm-ganar-modos { display: flex; flex-wrap: wrap; gap: 6px; }
+.crm-ganar-modo { flex: 1 1 120px; min-height: 40px; padding: 4px 8px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1px solid var(--crm-input-borde); background: var(--crm-card); color: var(--crm-texto-2); }
 .crm-ganar-modo[aria-pressed="true"] { border-color: var(--crm-verde); background: var(--crm-verde-suave); color: var(--crm-verde-tx); }
 .crm-orden { display: flex; width: 100%; justify-content: space-between; gap: 8px; text-align: left; border-radius: 8px; padding: 8px 10px; min-height: 44px; font-size: 12.5px; margin-bottom: 6px; border: 1px solid var(--crm-borde); background: var(--crm-card); color: var(--crm-texto); }
 .crm-orden[aria-pressed="true"] { border: 2px solid var(--crm-verde); background: var(--crm-verde-suave); }

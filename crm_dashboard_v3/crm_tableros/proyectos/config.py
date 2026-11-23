@@ -70,7 +70,7 @@ ETAPAS = ConfigModelo(
 			100,
 			activa=False,
 			requisitos=("orden_de_venta",),
-			texto_requisitos="orden de venta creada",
+			texto_requisitos="orden de venta creada o venta POS vinculada",
 			valor="Ganada",
 			status="Converted",
 		),

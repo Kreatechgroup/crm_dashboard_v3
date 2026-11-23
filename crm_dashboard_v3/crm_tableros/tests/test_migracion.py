@@ -13,16 +13,26 @@ def fila(valor, status="Open", lost_reason=None, probability=100):
 
 
 class TestDefinicionWorkflow(FrappeTestCase):
-	def test_veintiuna_transiciones_para_plus(self):
+	def test_veinticuatro_transiciones_para_plus(self):
 		transiciones = workflow.transiciones_de(TABLERO)
-		self.assertEqual(len(transiciones), 21)
+		self.assertEqual(len(transiciones), 24)
 		pares = {(t["state"], t["next_state"]) for t in transiciones}
 		self.assertIn(("1 · Calificar", "2 · Requerimiento y diseño"), pares)
 		self.assertIn(("3 · Propuesta enviada", "Ganada"), pares)
 		self.assertIn(("4 · Negociación", "Ganada"), pares)
 		self.assertIn(("En pausa", "4 · Negociación"), pares)
-		self.assertNotIn(("1 · Calificar", "Ganada"), pares)
 		self.assertTrue(all(t["allowed"] == workflow.ROL for t in transiciones))
+
+	def test_ganar_desde_1_2_o_pausa_solo_con_venta_pos(self):
+		evalua = lambda c, doc: bool(eval(c, {}, {"doc": frappe._dict(doc)}))  # noqa: E731
+		plus = {"establecimiento_lista": "Plus Fontabella Importado", "sales_model": "Proyectos"}
+		a_ganada = {t["state"]: t["condition"] for t in workflow.transiciones_de(TABLERO) if t["next_state"] == "Ganada"}
+		self.assertEqual(set(a_ganada), {"1 · Calificar", "2 · Requerimiento y diseño", "3 · Propuesta enviada", "4 · Negociación", "En pausa"})
+		for desde in ("1 · Calificar", "2 · Requerimiento y diseño", "En pausa"):
+			self.assertFalse(evalua(a_ganada[desde], plus), desde)
+			self.assertTrue(evalua(a_ganada[desde], {**plus, "custom_factura_pos": "SINV-1"}), desde)
+		# Con propuesta se gana con orden de venta, sin venta POS.
+		self.assertTrue(evalua(a_ganada["3 · Propuesta enviada"], plus))
 
 	def test_acciones_sin_repetir_desde_un_mismo_estado(self):
 		transiciones = workflow.transiciones_de(TABLERO)

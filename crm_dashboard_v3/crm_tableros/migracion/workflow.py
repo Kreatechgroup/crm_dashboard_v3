@@ -18,7 +18,7 @@ mano y primero en simulación:
 
 import frappe
 
-from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA, ConfigModelo
+from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA, CAMPO_FACTURA_POS, ConfigModelo
 from crm_dashboard_v3.crm_tableros.common.tableros import ConfigTablero, todos
 
 ORIGEN = "Embudo de ventas 2019"
@@ -64,29 +64,37 @@ def _accion(destino, cfg: ConfigModelo) -> str:
 
 
 def transiciones_de(t: ConfigTablero) -> list[dict]:
-	"""Transiciones de un tablero: avanzar, regresar, pausar, retomar, ganar y perder."""
+	"""Transiciones de un tablero: avanzar, regresar, pausar, retomar, ganar y perder.
+
+	Ganar con orden de venta solo desde las etapas con propuesta (``puede_ganar``); con
+	una venta POS (el cliente compró en caja, sin orden) desde cualquier etapa abierta,
+	y solo cuando la oportunidad ya tiene la factura POS vinculada.
+	"""
 	cfg = t.etapas
 	activas = cfg.activas
 	pausa = next((e for e in cfg.etapas if not e.activa and not e.status), None)
 	ganada = cfg.por_status("Converted")
 	perdida = cfg.por_status("Lost")
+	condicion = condicion_de(t)
+	con_pos = f"{condicion} and doc.{CAMPO_FACTURA_POS}"
 	pares = []
 	for i, etapa in enumerate(activas):
 		if i + 1 < len(activas):
-			pares.append((etapa, activas[i + 1]))
+			pares.append((etapa, activas[i + 1], condicion))
 		if i > 0:
-			pares.append((etapa, activas[i - 1]))
-		if etapa.puede_ganar and ganada:
-			pares.append((etapa, ganada))
+			pares.append((etapa, activas[i - 1], condicion))
+		if ganada:
+			pares.append((etapa, ganada, condicion if etapa.puede_ganar else con_pos))
 		if pausa:
-			pares.append((etapa, pausa))
+			pares.append((etapa, pausa, condicion))
 		if perdida:
-			pares.append((etapa, perdida))
+			pares.append((etapa, perdida, condicion))
 	if pausa:
-		pares.extend((pausa, etapa) for etapa in activas)
+		pares.extend((pausa, etapa, condicion) for etapa in activas)
+		if ganada:
+			pares.append((pausa, ganada, con_pos))
 		if perdida:
-			pares.append((pausa, perdida))
-	condicion = condicion_de(t)
+			pares.append((pausa, perdida, condicion))
 	return [
 		{
 			"state": desde.valor,
@@ -94,9 +102,9 @@ def transiciones_de(t: ConfigTablero) -> list[dict]:
 			"next_state": hacia.valor,
 			"allowed": ROL,
 			"allow_self_approval": 1,
-			"condition": condicion,
+			"condition": cond,
 		}
-		for desde, hacia in pares
+		for desde, hacia, cond in pares
 	]
 
 

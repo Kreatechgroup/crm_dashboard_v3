@@ -11,9 +11,10 @@ import frappe
 from frappe import _
 from frappe.utils import add_months, flt, getdate
 
-from crm_dashboard_v3.crm_tableros.common import acciones, alcance, entregables, etapas, flujo
+from crm_dashboard_v3.crm_tableros.common import acciones, alcance, consultas, entregables, etapas, flujo, ventas
 from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_FECHA_PROXIMO_PASO,
+	CAMPO_FACTURA_POS,
 	CAMPO_FECHA_RETOMAR,
 	CAMPO_ORDEN_DE_VENTA,
 	CAMPO_PROXIMO_PASO,
@@ -25,6 +26,9 @@ from crm_dashboard_v3.crm_tableros.proyectos.config import TABLERO
 HISTORIAL_POR_PAGINA = 50
 # Órdenes de venta del cliente que se ofrecen para vincular al cerrar como ganada.
 MESES_ORDENES_PARA_VINCULAR = 6
+# Ventas POS que se ofrecen para vincular al cerrar como ganada (sin orden de venta).
+MESES_POS_PARA_VINCULAR = 6
+MAX_POS_PARA_VINCULAR = 50
 CAMPOS_EDITABLES = (
 	"presupuesto_declarado_por_el_cliente",
 	"fecha_estimada_aprobacion",
@@ -146,6 +150,8 @@ def get_oportunidad(nombre: str, pagina_historial: int = 0):
 		"cotizacion_para_orden": cotizacion_para_orden,
 		"monto_cotizacion_para_orden": flt(cotizacion_vigente.base_grand_total) if cotizacion_vigente else 0,
 		"ordenes_del_cliente": _ordenes_del_cliente(doc) if not cerrada else [],
+		"factura_pos": etapas.factura_pos_vinculada(doc),
+		"facturas_pos": _facturas_pos_para_vincular(doc) if not cerrada else [],
 		"entregables": entregables.de_documento("Opportunity", doc.name, hoy),
 		"siguiente": _etapa_con_faltantes(doc, siguiente, cfg, rel),
 		"anterior": _etapa_con_faltantes(doc, anterior, cfg, rel),
@@ -245,6 +251,72 @@ def _ordenes_del_cliente(doc) -> list[dict]:
 			"ligada_a": ligadas.get(o.name) if ligadas.get(o.name) != doc.name else None,
 		}
 		for o in ordenes
+	]
+
+
+def _usuario_asesor(doc) -> str:
+	return doc.get("asesor_comercial_user_id") or doc.owner
+
+
+def _sql_pos_candidatas(doc, nombre: str | None = None) -> list:
+	"""Facturas POS enviadas (no devoluciones, sin orden de venta) del asesor o del cliente.
+
+	SQL directo: los asesores no siempre pueden leer Sales Invoice (solo las que crearon),
+	y la venta pudo capturarla otro usuario a nombre del cliente. Solo se devuelven las
+	del asesor de la oportunidad o las del cliente de la oportunidad, en las empresas
+	con la moneda de la oportunidad.
+	"""
+	params = {
+		"companias": tuple(ventas.empresas_de_la_moneda(doc.company)),
+		"usuario": _usuario_asesor(doc),
+		"cliente": _cliente_de(doc) or "",
+		"desde": add_months(getdate(), -MESES_POS_PARA_VINCULAR),
+		"nombre": nombre or "",
+	}
+	filtro = "si.name = %(nombre)s" if nombre else "si.posting_date >= %(desde)s"
+	return frappe.db.sql(
+		f"""
+		select si.name, si.company, si.posting_date, si.customer, si.customer_name, si.owner,
+			si.base_net_total, si.pos_profile,
+			(select sii.item_name from `tabSales Invoice Item` sii where sii.parent = si.name order by sii.idx limit 1) as producto,
+			(select count(*) from `tabSales Invoice Item` sii where sii.parent = si.name) as lineas
+		from `tabSales Invoice` si
+		where si.docstatus = 1 and si.is_pos = 1 and si.is_return = 0
+			and si.company in %(companias)s
+			and (si.owner = %(usuario)s or si.customer = %(cliente)s)
+			and not exists (
+				select 1 from `tabSales Invoice Item` x
+				where x.parent = si.name and ifnull(x.sales_order, '') != ''
+			)
+			and {filtro}
+		order by (si.customer = %(cliente)s) desc, si.posting_date desc, si.name desc
+		limit {MAX_POS_PARA_VINCULAR}
+		""",
+		params,
+		as_dict=True,
+	)
+
+
+def _facturas_pos_para_vincular(doc) -> list[dict]:
+	"""Ventas POS que pueden cerrar la oportunidad como ganada: primero las del mismo cliente."""
+	facturas = _sql_pos_candidatas(doc)
+	ligadas = consultas.oportunidades_de_facturas_pos([f.name for f in facturas])
+	cliente = _cliente_de(doc)
+	nombres = nombres_de_usuarios([f.owner for f in facturas])
+	return [
+		{
+			"name": f.name,
+			"fecha": str(f.posting_date),
+			"cliente": f.customer_name,
+			"mismo_cliente": bool(cliente) and f.customer == cliente,
+			"monto": flt(f.base_net_total),
+			"producto": f.producto,
+			"lineas": f.lineas,
+			"empresa": f.company,
+			"creada_por": nombres.get(f.owner, ""),
+			"ligada_a": ligadas.get(f.name) if ligadas.get(f.name) != doc.name else None,
+		}
+		for f in facturas
 	]
 
 
@@ -404,6 +476,31 @@ def vincular_orden_de_venta(nombre: str, sales_order: str):
 	if ligada and ligada != doc.name:
 		frappe.throw(_("La orden de venta {0} ya está ligada a {1}.").format(sales_order, ligada))
 	doc.set(CAMPO_ORDEN_DE_VENTA, sales_order)
+	ganada = TABLERO.etapas.por_status("Converted")
+	acciones.cambiar_etapa(doc, ganada, TABLERO.etapas)
+	return {"name": doc.name, "status": doc.status, "etapa": ganada.titulo}
+
+
+@frappe.whitelist(methods=["POST"])
+def vincular_factura_pos(nombre: str, factura: str):
+	"""Cierra como ganada con una venta POS (el cliente compró en caja, sin orden de venta).
+
+	La factura debe ser POS, enviada, no devolución, sin orden de venta, del asesor de la
+	oportunidad o de su cliente, y no estar vinculada a otra oportunidad. Se puede desde
+	cualquier etapa abierta (el workflow lo permite solo con la factura vinculada).
+	"""
+	doc = acciones.oportunidad_del_tablero(nombre, TABLERO, "write")
+	if not _sql_pos_candidatas(doc, factura):
+		frappe.throw(
+			_("{0} no es una venta POS enviada, sin orden de venta, del asesor o del cliente de la oportunidad.").format(
+				factura
+			),
+			title=_("Venta POS"),
+		)
+	ligada = consultas.oportunidades_de_facturas_pos([factura]).get(factura)
+	if ligada and ligada != doc.name:
+		frappe.throw(_("La venta POS {0} ya está vinculada a {1}.").format(factura, ligada), title=_("Venta POS"))
+	doc.set(CAMPO_FACTURA_POS, factura)
 	ganada = TABLERO.etapas.por_status("Converted")
 	acciones.cambiar_etapa(doc, ganada, TABLERO.etapas)
 	return {"name": doc.name, "status": doc.status, "etapa": ganada.titulo}

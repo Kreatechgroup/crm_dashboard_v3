@@ -430,3 +430,63 @@ class TestRetailDePlus(BaseCRMProyectos):
 		frappe.db.set_value("Opportunity", op.name, "establecimiento_lista", None)
 		with self.assertRaises(frappe.ValidationError):
 			api.get_oportunidad(op.name)
+
+
+class TestGanadaConVentaPOS(BaseCRMProyectos):
+	"""El cliente compró en caja (POS) sin orden de venta: la oportunidad se gana ligando la factura POS."""
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.pos = frappe.get_all(
+			"Sales Invoice", filters={"docstatus": 1, "is_pos": 1, "is_return": 0}, pluck="name", limit=2
+		)
+
+	def setUp(self):
+		if len(self.pos) < 2:
+			self.skipTest("El sitio de pruebas no tiene facturas POS enviadas.")
+
+	def _candidata(self, factura):
+		return patch.object(api, "_sql_pos_candidatas", return_value=[frappe._dict(name=factura)])
+
+	def test_venta_pos_cumple_el_requisito_de_ganada(self):
+		op = crear_oportunidad()
+		self.assertTrue(etapas.faltantes(op, CFG.etapa("ganada"), CFG))
+		op.set(etapas.CAMPO_FACTURA_POS, self.pos[0])
+		self.assertEqual(etapas.faltantes(op, CFG.etapa("ganada"), CFG), [])
+
+	def test_vincular_venta_pos_marca_ganada_desde_calificar(self):
+		op = crear_oportunidad()
+		with self._candidata(self.pos[0]):
+			api.vincular_factura_pos(op.name, self.pos[0])
+		op.reload()
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
+		self.assertEqual(op.status, "Converted")
+		self.assertEqual(flt(op.probability), 100)
+		self.assertEqual(op.get(etapas.CAMPO_FACTURA_POS), self.pos[0])
+
+	def test_factura_que_no_es_pos_del_asesor_no_se_vincula(self):
+		op = crear_oportunidad()
+		with patch.object(api, "_sql_pos_candidatas", return_value=[]):
+			with self.assertRaises(frappe.ValidationError):
+				api.vincular_factura_pos(op.name, self.pos[0])
+		op.reload()
+		self.assertNotEqual(op.status, "Converted")
+		self.assertFalse(op.get(etapas.CAMPO_FACTURA_POS))
+
+	def test_venta_pos_ya_vinculada_a_otra_no_se_repite(self):
+		primera = crear_oportunidad()
+		frappe.db.set_value("Opportunity", primera.name, etapas.CAMPO_FACTURA_POS, self.pos[1])
+		op = crear_oportunidad()
+		with self._candidata(self.pos[1]), self.assertRaises(frappe.ValidationError):
+			api.vincular_factura_pos(op.name, self.pos[1])
+		self.assertNotEqual(frappe.db.get_value("Opportunity", op.name, "status"), "Converted")
+
+	def test_candidatas_excluyen_devoluciones_y_ventas_con_orden(self):
+		op = crear_oportunidad()
+		for f in api._sql_pos_candidatas(op):
+			datos = frappe.db.get_value("Sales Invoice", f.name, ["is_pos", "is_return", "docstatus"], as_dict=True)
+			self.assertEqual((datos.is_pos, datos.is_return, datos.docstatus), (1, 0, 1))
+			self.assertFalse(
+				frappe.db.exists("Sales Invoice Item", {"parent": f.name, "sales_order": ["is", "set"]})
+			)

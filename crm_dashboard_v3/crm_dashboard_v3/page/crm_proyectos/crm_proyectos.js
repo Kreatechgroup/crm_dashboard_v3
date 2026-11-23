@@ -809,7 +809,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		if (op.cerrada) {
 			const txt =
 				op.status === "Converted"
-					? __("Ganada con la orden de venta {0}. Status Converted, probabilidad 100%.", [op.ordenes_de_venta.join(", ") || "—"])
+					? op.factura_pos && !op.ordenes_de_venta.length
+						? __("Ganada con la venta POS {0} (sin orden de venta). Status Converted, probabilidad 100%.", [op.factura_pos])
+						: __("Ganada con la orden de venta {0}. Status Converted, probabilidad 100%.", [op.ordenes_de_venta.join(", ") || "—"])
 					: __("Perdida por «{0}». Status Lost, probabilidad 0%.", [op.lost_reason || "—"]);
 			return `<p style="margin:14px 0 0;font-size:13px;line-height:1.5">${this.e(txt)}</p>`;
 		}
@@ -853,7 +855,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			primaria = `
 				${this.estado.intento === "prim" && sig.faltantes.length ? `<div role="alert" class="crm-alerta">${this.e(__("Para avanzar falta: {0}", [sig.faltantes.join(", ")]))}</div>` : ""}
 				<button type="button" class="${es_ganada ? "crm-boton-verde" : "crm-boton-morado"} crm-boton-grande" data-accion="primaria">${this.e(label)}</button>
-				${this.estado.ganar ? this.html_ganar() : ""}
+				${es_ganada && this.estado.ganar ? this.html_ganar() : ""}
 				<div class="crm-pista-centro">${this.e(pista)}</div>`;
 		}
 		return `
@@ -881,7 +883,47 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				${caja_cot}
 				<div class="crm-pista">${__("Los datos se guardan al cambiar cada campo.")}</div>
 				${primaria}
+				${this.html_ganar_pos()}
 				${this.html_otras_acciones()}
+			</div>`;
+	}
+
+	// Desde las etapas que aún no ganan con orden (1, 2, En pausa): el cliente compró en caja (POS).
+	html_ganar_pos() {
+		const op = this.op;
+		if (op.siguiente && op.siguiente.clave === "ganada") return "";
+		if (this.estado.ganar) return this.html_ganar();
+		return `
+			<button type="button" class="crm-boton-blanco crm-boton-mediano" data-accion="ganar-pos">${this.e(
+				__("¿Compró en caja? Ganada con venta POS ({0})", [op.facturas_pos.length])
+			)}</button>`;
+	}
+
+	html_facturas_pos(g) {
+		const facturas = this.op.facturas_pos;
+		if (!facturas.length) {
+			return `<div class="crm-aviso-gris">${__("No hay ventas POS de los últimos 6 meses del asesor ni del cliente sin orden de venta.")}</div>`;
+		}
+		return `
+			<div>
+				<div class="crm-pista" style="margin-bottom:6px">${__("Ventas POS (sin orden de venta) del asesor o del cliente, últimos 6 meses. Primero las del mismo cliente.")}</div>
+				${facturas
+					.map((f) => {
+						const detalle = [this.fecha(f.fecha), this.dinero(f.monto) + " " + __("sin IVA"), f.producto + (f.lineas > 1 ? " " + __("y {0} más", [f.lineas - 1]) : "")];
+						if (this.es_otra_empresa(f.empresa)) detalle.push(f.empresa);
+						const nota = f.ligada_a
+							? __("Ya vinculada a {0}", [f.ligada_a])
+							: [f.mismo_cliente ? __("Mismo cliente") : __("Otro cliente: {0}", [f.cliente]), f.creada_por ? __("creada por {0}", [f.creada_por]) : ""]
+									.filter(Boolean)
+									.join(" · ");
+						return `
+						<button type="button" class="crm-orden" data-accion="elegir-pos" data-valor="${this.e(f.name)}" aria-pressed="${g.factura === f.name}"
+							${f.ligada_a ? "disabled" : ""}>
+							<span><strong style="display:block">${this.e(f.cliente)} · <span class="crm-mono">${this.e(f.name)}</span></strong>${this.e(detalle.join(" · "))}</span>
+							<span class="crm-orden-nota">${this.e(nota)}</span>
+						</button>`;
+					})
+					.join("")}
 			</div>`;
 	}
 
@@ -889,8 +931,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const op = this.op;
 		const g = this.estado.ganar;
 		const ordenes = op.ordenes_del_cliente;
+		// Desde 1, 2 o En pausa solo se puede ganar con una venta POS.
+		const solo_pos = !(op.siguiente && op.siguiente.clave === "ganada");
 		let cuerpo;
-		if (g.modo === "nueva") {
+		if (g.modo === "pos") {
+			cuerpo = this.html_facturas_pos(g);
+		} else if (g.modo === "nueva") {
 			cuerpo = op.cotizacion_para_orden
 				? `
 				<div style="display:grid;gap:8px;font-size:12.5px">
@@ -922,26 +968,46 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					}
 				</div>`;
 		}
-		const falta = g.modo === "nueva" ? (op.cotizacion_para_orden && !g.fecha ? [__("fecha de entrega")] : []) : g.orden ? [] : [__("la orden de venta a vincular")];
-		return `
-			<div role="group" aria-label="${__("Cerrar como ganada")}" class="crm-ganar">
-				<div>
-					<div class="crm-ganar-tit">${__("Cerrar como ganada")}</div>
-					<div class="crm-pista">${__("Toda oportunidad ganada debe quedar ligada a una Sales Order. Elige una opción.")}</div>
-				</div>
+		const falta =
+			g.modo === "nueva"
+				? op.cotizacion_para_orden && !g.fecha
+					? [__("fecha de entrega")]
+					: []
+				: g.modo === "pos"
+				? g.factura
+					? []
+					: [__("la venta POS a vincular")]
+				: g.orden
+				? []
+				: [__("la orden de venta a vincular")];
+		const modos = solo_pos
+			? ""
+			: `
 				<div class="crm-ganar-modos">
 					<button type="button" class="crm-ganar-modo" aria-pressed="${g.modo === "nueva"}" data-accion="modo-ganar" data-valor="nueva">${__("Crear nueva Sales Order")}</button>
 					<button type="button" class="crm-ganar-modo" aria-pressed="${g.modo === "vincular"}" data-accion="modo-ganar" data-valor="vincular">${this.e(
 						__("Vincular una existente ({0})", [ordenes.length])
 					)}</button>
+					<button type="button" class="crm-ganar-modo" aria-pressed="${g.modo === "pos"}" data-accion="modo-ganar" data-valor="pos">${this.e(
+						__("Venta POS ({0})", [op.facturas_pos.length])
+					)}</button>
+				</div>`;
+		const ayuda = solo_pos
+			? __("El cliente compró en caja (POS) sin orden de venta: elige la factura POS para ligarla y cerrar la oportunidad como ganada.")
+			: __("Toda oportunidad ganada debe quedar ligada a una Sales Order o a una venta POS. Elige una opción.");
+		const boton = g.modo === "nueva" ? __("Crear Sales Order") : g.modo === "pos" ? __("Vincular venta POS y marcar ganada") : __("Vincular y marcar ganada");
+		return `
+			<div role="group" aria-label="${__("Cerrar como ganada")}" class="crm-ganar">
+				<div>
+					<div class="crm-ganar-tit">${__("Cerrar como ganada")}</div>
+					<div class="crm-pista">${this.e(ayuda)}</div>
 				</div>
+				${modos}
 				${cuerpo}
 				${g.intento && falta.length ? `<div role="alert" class="crm-alerta">${this.e(__("Falta: {0}", [falta.join(", ")]))}</div>` : ""}
 				<div class="crm-acciones-fila">
 					<button type="button" class="crm-boton-verde crm-boton-mediano" style="flex:1" data-accion="confirmar-ganar"
-						${g.modo === "nueva" && !op.cotizacion_para_orden ? "disabled" : ""}>${
-						g.modo === "nueva" ? __("Crear Sales Order") : __("Vincular y marcar ganada")
-					}</button>
+						${g.modo === "nueva" && !op.cotizacion_para_orden ? "disabled" : ""}>${this.e(boton)}</button>
 					<button type="button" class="crm-boton-blanco crm-boton-mediano" data-accion="cancelar-ganar">${__("Cancelar")}</button>
 				</div>
 				${g.modo === "nueva" ? `<div class="crm-pista">${__("La orden se abre en el formulario para que completes comisiones y entrega; al guardarla y enviarla, la oportunidad pasa sola a Ganada.")}</div>` : ""}
@@ -1662,6 +1728,14 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				Object.assign(this.estado.ganar, { modo: valor, intento: false });
 				this.pintar_panel();
 			},
+			"ganar-pos": () => {
+				this.estado.ganar = { modo: "pos", fecha: "", orden: "", factura: "", intento: false };
+				this.pintar_panel();
+			},
+			"elegir-pos": () => {
+				Object.assign(this.estado.ganar, { factura: valor, intento: false });
+				this.pintar_panel();
+			},
 			"elegir-orden": () => {
 				Object.assign(this.estado.ganar, { orden: valor, intento: false });
 				this.pintar_panel();
@@ -1734,7 +1808,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			return;
 		}
 		if (sig.clave === "ganada") {
-			this.estado.ganar = this.estado.ganar || { modo: this.op.cotizacion_para_orden ? "nueva" : "vincular", fecha: "", orden: "", intento: false };
+			this.estado.ganar = this.estado.ganar || { modo: this.op.cotizacion_para_orden ? "nueva" : "vincular", fecha: "", orden: "", factura: "", intento: false };
 			this.pintar_panel();
 			return;
 		}
@@ -1760,6 +1834,20 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					this.estado.ganar = null;
 					frappe.show_alert({ message: __("Completa la orden de venta y envíala para marcar la oportunidad como ganada."), indicator: "blue" }, 8);
 				});
+			return;
+		}
+		if (g.modo === "pos") {
+			if (!g.factura) {
+				g.intento = true;
+				this.pintar_panel();
+				return;
+			}
+			crm_tableros.llamar(API_PROYECTOS + "vincular_factura_pos", { nombre: this.op.name, factura: g.factura }).then(() => {
+				this.estado.ganar = null;
+				this.estado.sel = null;
+				this.op = null;
+				this.refrescar_tras_accion(__("Ganada con la venta POS {0}.", [g.factura]));
+			});
 			return;
 		}
 		if (!g.orden) {

@@ -180,6 +180,9 @@ def _documentos(junta) -> dict:
 		list({o.name for o in ordenes} | {f.sales_order for f in junta["facturas"] if f.sales_order})
 	)
 
+	# Ventas POS (sin orden) con las que se ganó una oportunidad.
+	oportunidad_de_pos = consultas.oportunidades_de_facturas_pos([f.name for f in junta["facturas"] if f.propia])
+
 	def eslabones(orden):
 		c = cadena.get(orden) or {}
 		return c.get("oportunidad"), c.get("cotizacion"), c.get("facturas", [])
@@ -187,6 +190,8 @@ def _documentos(junta) -> dict:
 	facturas = []
 	for f in junta["facturas"]:
 		oportunidad, cotizacion, _facturas = eslabones(f.sales_order)
+		if f.propia:
+			oportunidad = oportunidad_de_pos.get(f.name)
 		facturas.append(
 			{
 				"name": f.name,

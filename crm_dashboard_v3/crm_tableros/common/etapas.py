@@ -23,6 +23,8 @@ CAMPO_FECHA_PROXIMO_PASO = "custom_fecha_proximo_paso"
 CAMPO_PRESUPUESTO = "presupuesto_declarado_por_el_cliente"
 # Orden de venta existente vinculada a mano al cerrar como ganada (si no viene de su cotización).
 CAMPO_ORDEN_DE_VENTA = "custom_orden_de_venta"
+# Venta de Punto de Venta (factura POS, sin orden) con la que se cerró como ganada.
+CAMPO_FACTURA_POS = "custom_factura_pos"
 # Respaldo de la migración de etapas (valores anteriores, para revertir).
 CAMPO_ETAPA_ANTERIOR = "custom_embudo_state_v2_anterior"
 CAMPO_STATUS_ANTERIOR = "custom_status_anterior"
@@ -254,6 +256,14 @@ def orden_vinculada(doc) -> str | None:
 	return None
 
 
+def factura_pos_vinculada(doc) -> str | None:
+	"""Factura POS enviada que se vinculó a la oportunidad al ganarla sin orden de venta."""
+	factura = doc.get(CAMPO_FACTURA_POS)
+	if factura and frappe.db.get_value("Sales Invoice", factura, "docstatus") == 1:
+		return factura
+	return None
+
+
 def _proximo_paso_con_fecha(doc, rel: DatosRelacionados) -> bool:
 	paso = proximo_paso_de(doc, rel.ultima_actividad)
 	return bool(paso.texto and paso.fecha)
@@ -284,8 +294,8 @@ REQUISITOS = {
 		lambda d, r, c: bool(r.cotizaciones_enviadas),
 	),
 	"orden_de_venta": (
-		_("orden de venta creada o vinculada"),
-		lambda d, r, c: bool(r.ordenes_de_venta or orden_vinculada(d)),
+		_("orden de venta creada o vinculada, o venta POS vinculada"),
+		lambda d, r, c: bool(r.ordenes_de_venta or orden_vinculada(d) or factura_pos_vinculada(d)),
 	),
 	"motivo_perdida": (
 		_("motivo de pérdida específico"),

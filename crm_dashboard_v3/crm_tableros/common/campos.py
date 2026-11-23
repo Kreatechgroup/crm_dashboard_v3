@@ -11,6 +11,7 @@ from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_PROBABILIDAD_ANTERIOR,
 	CAMPO_STATUS_ANTERIOR,
 	CAMPO_FECHA_RETOMAR,
+	CAMPO_FACTURA_POS,
 	CAMPO_ORDEN_DE_VENTA,
 	CAMPO_PROXIMO_PASO,
 )
@@ -50,6 +51,16 @@ def definicion_campos() -> dict:
 				"read_only": 1,
 				"description": "Orden existente con la que se cerró como ganada (si no se creó desde su cotización).",
 			},
+			{
+				"fieldname": CAMPO_FACTURA_POS,
+				"label": "Venta POS vinculada",
+				"fieldtype": "Link",
+				"options": "Sales Invoice",
+				"insert_after": CAMPO_ORDEN_DE_VENTA,
+				"read_only": 1,
+				"no_copy": 1,
+				"description": "Factura de Punto de Venta con la que se cerró como ganada (el cliente compró sin orden de venta).",
+			},
 			# Respaldo de la migración a las etapas nuevas: solo se ven si la oportunidad se migró.
 			*_campos_de_respaldo(),
 		],
@@ -65,7 +76,7 @@ def _campos_de_respaldo() -> list[dict]:
 		(CAMPO_PROBABILIDAD_ANTERIOR, "Probabilidad anterior (antes de migrar)", "Float"),
 		(CAMPO_MOTIVO_ANTERIOR, "Motivo de pérdida anterior (antes de migrar)", "Data"),
 	]
-	anterior = CAMPO_ORDEN_DE_VENTA
+	anterior = CAMPO_FACTURA_POS
 	definiciones = []
 	for fieldname, label, fieldtype in campos:
 		definiciones.append(
