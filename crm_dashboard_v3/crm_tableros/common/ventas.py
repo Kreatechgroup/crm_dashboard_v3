@@ -6,6 +6,10 @@ Atribución (igual que el reporte de comisiones de Plus):
 - Más las facturas que el asesor creó sin orden de venta (100%).
 Las notas de crédito (montos negativos) restan.
 
+Cuentan las ventas de **todas las empresas** con la misma moneda que la del tablero:
+un asesor de Plus también vende por Grupo Creative, con su Sales Person de Umob o
+con el de esa empresa (los dos son del mismo empleado), y esas ventas van a su meta.
+
 El modelo de venta de cada factura es el «Modelo de Venta» de su orden
 (``sales_model_1``); si la orden no lo tiene, el del Sales Person. Las facturas
 sin orden toman el modelo por defecto del tablero.
@@ -21,14 +25,23 @@ import frappe
 from frappe.utils import flt, getdate
 
 
+def empresas_de_la_moneda(company: str) -> list[str]:
+	"""Empresas con la misma moneda que ``company`` (sus montos base se pueden sumar)."""
+	moneda = frappe.get_cached_value("Company", company, "default_currency")
+	return frappe.get_all("Company", filters={"default_currency": moneda}, pluck="name") or [company]
+
+
 def facturas_atribuidas(
 	sales_persons: dict[str, str], usuario: str, company: str, desde, hasta, modelo_por_defecto: str
 ) -> list[frappe._dict]:
-	"""Una fila por factura y Sales Person (o por factura propia sin orden)."""
+	"""Una fila por factura y Sales Person (o por factura propia sin orden).
+
+	``company`` es la del tablero: se suman sus ventas y las de las empresas con su moneda.
+	"""
 	if not company or not (sales_persons or usuario):
 		return []
 	params = {
-		"company": company,
+		"companias": tuple(empresas_de_la_moneda(company)),
 		"desde": desde,
 		"hasta": hasta,
 		"sps": tuple(sales_persons) or ("",),
@@ -36,7 +49,7 @@ def facturas_atribuidas(
 	}
 	por_orden = frappe.db.sql(
 		"""
-		select si.name, si.posting_date, si.customer_name, si.is_return,
+		select si.name, si.company, si.posting_date, si.customer_name, si.is_return,
 			si.base_grand_total, si.outstanding_amount,
 			so.name as sales_order, so.sales_model_1 as modelo_orden,
 			ca.asesor, ca.distribucion,
@@ -46,7 +59,7 @@ def facturas_atribuidas(
 		join `tabSales Order` so on so.name = sii.sales_order
 		join `tabComisiones Asesores` ca
 			on ca.parent = so.name and ca.parenttype = 'Sales Order'
-		where si.docstatus = 1 and si.company = %(company)s
+		where si.docstatus = 1 and si.company in %(companias)s
 			and si.posting_date between %(desde)s and %(hasta)s
 			and ca.asesor in %(sps)s
 		group by si.name, so.name, ca.name
@@ -56,10 +69,10 @@ def facturas_atribuidas(
 	)
 	propias = frappe.db.sql(
 		"""
-		select si.name, si.posting_date, si.customer_name, si.is_return,
+		select si.name, si.company, si.posting_date, si.customer_name, si.is_return,
 			si.base_grand_total, si.outstanding_amount, si.base_net_total as neto
 		from `tabSales Invoice` si
-		where si.docstatus = 1 and si.company = %(company)s
+		where si.docstatus = 1 and si.company in %(companias)s
 			and si.posting_date between %(desde)s and %(hasta)s
 			and si.owner = %(usuario)s
 			and not exists (
@@ -94,6 +107,7 @@ def _fila(f, modelo, sales_person, distribucion, tasa, propia=False) -> frappe._
 	base = cobrado * distribucion / 100
 	return frappe._dict(
 		name=f.name,
+		empresa=f.company,
 		fecha=getdate(f.posting_date),
 		cliente=f.customer_name,
 		modelo=modelo,

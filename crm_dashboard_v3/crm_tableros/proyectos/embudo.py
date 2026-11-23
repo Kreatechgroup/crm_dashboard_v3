@@ -38,6 +38,7 @@ def construir(t, ctx, asesores: list, con_resumen: bool = False) -> dict:
 	mostrar_asesor = len(asesores) > 1
 	grupo = _agrupar(ops, cer, vencidas)
 	ventas_por_asesor = {a.usuario: meta_y_facturado(a, t, ctx) for a in asesores}
+	avance = {usuario: avance_de_metas(v) for usuario, v in ventas_por_asesor.items()}
 
 	resultado = {
 		"kpis": _indicadores(grupo, ventas_por_asesor.values(), ctx),
@@ -57,7 +58,7 @@ def construir(t, ctx, asesores: list, con_resumen: bool = False) -> dict:
 			{"clave": "perdida", "titulo": _("Perdidas del mes"), **_columna(grupo["perdidas"], mostrar_asesor)},
 		],
 		"tipos": sorted({o.tipo for o in grupo["activas"] if o.tipo}),
-		"mi_dia": _mi_dia(grupo, cfg, ctx, mostrar_asesor),
+		"mi_dia": _mi_dia(grupo, cfg, ctx, mostrar_asesor, avance),
 		"vencidas": [_vencida(v, nombre_de, mostrar_asesor, ctx) for v in vencidas],
 		"incoherentes": {
 			"cantidad": len(grupo["incoherentes"]),
@@ -79,7 +80,7 @@ def meta_y_facturado(asesor, t, ctx) -> dict:
 	"""Meta y facturado del mes del asesor: Σ de todos sus Sales Person, y separado por modelo."""
 	meta = metas.meta_por_modelo(asesor.sales_persons, t.tipo_meta, ctx.desde, ctx.hasta, ctx.company)
 	fact = ventas.facturado(
-		asesor.sales_persons, asesor.usuario, ctx.company, ctx.desde, ctx.hasta, t.modelo_por_defecto
+		asesor.sales_persons_de_ventas, asesor.usuario, ctx.company, ctx.desde, ctx.hasta, t.modelo_por_defecto
 	)
 	return {
 		"asesor": asesor.nombre,
@@ -89,6 +90,28 @@ def meta_y_facturado(asesor, t, ctx) -> dict:
 		"filas": fact["filas"],
 		"meta_por_modelo": meta,
 	}
+
+
+def avance_de_metas(ventas_asesor: dict) -> dict[str, dict]:
+	"""Modelo -> meta, facturado y lo que falta, de la meta de cada Sales Person del asesor."""
+	avance = {m: {"meta": monto, "facturado": 0.0} for m, monto in ventas_asesor["meta_por_modelo"].items()}
+	for f in ventas_asesor["filas"]:
+		avance.setdefault(f.modelo, {"meta": 0.0, "facturado": 0.0})["facturado"] += f.monto
+	for a in avance.values():
+		a["falta"] = max(0.0, a["meta"] - a["facturado"])
+	return avance
+
+
+def completa_la_meta(o, avance: dict) -> dict | None:
+	"""Si la oportunidad, al ganarse, completa la meta de su modelo (la de su Sales Person).
+
+	Solo cuenta cuando la meta existe y aún falta algo: el monto de la oportunidad
+	cubre lo que le falta al asesor en ese modelo.
+	"""
+	a = (avance.get(o.asesor_usuario) or {}).get(o.modelo)
+	if not a or a["meta"] <= 0 or a["falta"] <= 0 or o.monto < a["falta"]:
+		return None
+	return {"modelo": o.modelo, "falta": a["falta"]}
 
 
 def _preparar(o, cfg, ctx, actividad, monto_cotizacion, usuarios, nombre_de):
@@ -167,6 +190,7 @@ def _indicadores(grupo, ventas_asesores, ctx) -> dict:
 		{
 			"name": f.name,
 			"cliente": f.cliente,
+			"empresa": f.empresa,
 			"fecha": str(f.fecha),
 			"modelo": f.modelo,
 			"monto": f.monto,
@@ -261,10 +285,14 @@ def _faltan_datos(o, ctx) -> list[str]:
 	return falta
 
 
-def _mi_dia(grupo, cfg, ctx, mostrar_asesor: bool) -> list[dict]:
+def _mi_dia(grupo, cfg, ctx, mostrar_asesor: bool, avance: dict) -> list[dict]:
 	activas = grupo["activas"]
 	sin_mover = [o for o in activas if o.dias > cfg.dias_verde_max]
-	escalar = sorted([o for o in sin_mover if o.monto >= cfg.umbral_escalar], key=lambda o: -o.monto)
+	# Primero las que completan la meta de su modelo; después, por monto.
+	escalar = [o for o in sin_mover if o.monto >= cfg.umbral_escalar]
+	for o in escalar:
+		o.completa_meta = completa_la_meta(o, avance)
+	escalar.sort(key=lambda o: (o.completa_meta is None, -o.monto))
 	atrasadas = sorted([o for o in sin_mover if o.monto < cfg.umbral_escalar], key=lambda o: -o.dias)
 	incompletas = sorted(
 		[o for o in activas if o.dias <= cfg.dias_verde_max and _faltan_datos(o, ctx)],
@@ -275,7 +303,15 @@ def _mi_dia(grupo, cfg, ctx, mostrar_asesor: bool) -> list[dict]:
 	def item(o, sub, valor=None, tab="datos"):
 		prefijos = [o.asesor if mostrar_asesor else "", o.modelo if o.modelo != PROYECTOS else ""]
 		prefijo = "".join(f"{p} · " for p in prefijos if p)
-		return {"name": o.name, "cliente": o.cliente, "sub": prefijo + sub, "valor": valor, "dias": o.dias, "tab": tab}
+		return {
+			"name": o.name,
+			"cliente": o.cliente,
+			"sub": prefijo + sub,
+			"valor": valor,
+			"dias": o.dias,
+			"tab": tab,
+			"completa_meta": o.get("completa_meta"),
+		}
 
 	grupos = [
 		{
@@ -285,6 +321,9 @@ def _mi_dia(grupo, cfg, ctx, mostrar_asesor: bool) -> list[dict]:
 			"ayuda_args": [cfg.umbral_escalar, cfg.dias_verde_max],
 			"tono": "rojo",
 			"items": [item(o, o.etapa.titulo, o.monto, "actividad") for o in escalar],
+			"completan_meta": sum(1 for o in escalar if o.completa_meta),
+			# Cuánto le falta de cada meta (solo con un asesor: en la tienda cada uno tiene la suya).
+			"metas": None if mostrar_asesor else _resumen_metas(next(iter(avance.values()), {})),
 		},
 		{
 			"clave": "vencidas",
@@ -321,6 +360,14 @@ def _mi_dia(grupo, cfg, ctx, mostrar_asesor: bool) -> list[dict]:
 		g["nombres"] = [i["name"] for i in g["items"]]
 	# "Retomar hoy" solo aparece cuando hay algo que retomar.
 	return [g for g in grupos if g["clave"] != "retomar" or g["cantidad"]]
+
+
+def _resumen_metas(avance_asesor: dict) -> list[dict]:
+	return [
+		{"modelo": modelo, **a, "porcentaje": round(a["facturado"] / a["meta"] * 100) if a["meta"] else 0}
+		for modelo, a in avance_asesor.items()
+		if a["meta"] > 0
+	]
 
 
 def _vencida(v, nombre_de, mostrar_asesor: bool, ctx) -> dict:

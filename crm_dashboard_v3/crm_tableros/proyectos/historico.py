@@ -42,7 +42,7 @@ def construir(t, ctx, asesores: list) -> dict:
 	fac_nombres = defaultdict(set)
 	for a in asesores:
 		for f in ventas.facturas_atribuidas(
-			a.sales_persons, a.usuario, ctx.company, inicio, ctx.hasta, t.modelo_por_defecto
+			a.sales_persons_de_ventas, a.usuario, ctx.company, inicio, ctx.hasta, t.modelo_por_defecto
 		):
 			mes = f.fecha.strftime("%Y-%m")
 			facturado[mes] += f.monto

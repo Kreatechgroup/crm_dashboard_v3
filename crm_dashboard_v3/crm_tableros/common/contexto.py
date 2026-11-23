@@ -26,9 +26,18 @@ class Asesor:
 	usuario: str
 	# Sales Person del asesor en el establecimiento: nombre -> modelo de venta.
 	sales_persons: dict[str, str] = field(default_factory=dict)
+	# Sales Person del mismo empleado en otras empresas o establecimientos (p. ej. Grupo
+	# Creative): sus ventas cuentan para la meta del tablero, pero su meta no se suma
+	# (es copia de la del establecimiento).
+	otros_sales_persons: dict[str, str] = field(default_factory=dict)
 
 	def sales_persons_de(self, modelo: str | None = None) -> list[str]:
 		return [sp for sp, m in self.sales_persons.items() if modelo in (None, m)]
+
+	@property
+	def sales_persons_de_ventas(self) -> dict[str, str]:
+		"""Sales Person cuyas ventas se atribuyen al asesor: los del tablero primero."""
+		return {**self.sales_persons, **self.otros_sales_persons}
 
 
 @dataclass
@@ -43,6 +52,7 @@ class Contexto:
 	moneda: str | None = None
 	establecimiento: str | None = None
 	sales_persons: dict[str, str] = field(default_factory=dict)
+	otros_sales_persons: dict[str, str] = field(default_factory=dict)
 	es_jefe: bool = False
 	establecimientos: list[str] = field(default_factory=list)
 	mensaje: str | None = None
@@ -59,7 +69,9 @@ class Contexto:
 		return min(self.hoy, self.hasta)
 
 	def como_asesor(self) -> Asesor:
-		return Asesor(self.empleado, self.nombre, self.usuario, dict(self.sales_persons))
+		return Asesor(
+			self.empleado, self.nombre, self.usuario, dict(self.sales_persons), dict(self.otros_sales_persons)
+		)
 
 
 def periodo(mes: str | None = None) -> tuple[date, date]:
@@ -180,6 +192,9 @@ def obtener(t: ConfigTablero, mes: str | None = None, establecimiento: str | Non
 			for s in sps
 			if s.establecimiento == ctx.establecimiento and s.company == ctx.company
 		}
+		ctx.otros_sales_persons = {
+			s.name: t.modelo_de_sales_person(s.name) for s in todos if s.name not in ctx.sales_persons
+		}
 	ctx.moneda = frappe.get_cached_value("Company", ctx.company, "default_currency") if ctx.company else None
 	return ctx
 
@@ -234,14 +249,38 @@ def asesores_de_tienda(t: ConfigTablero, establecimiento: str) -> list[Asesor]:
 			pluck="parent",
 		)
 	)
+	otros = _otros_sales_persons([e.name for e in empleados], establecimiento)
+	de_la_tienda = {s.name for s in sps}
 	asesores = [
 		Asesor(
 			e.name,
 			e.employee_name,
 			e.user_id,
 			{s.name: t.modelo_de_sales_person(s.name) for s in sps if s.employee == e.name},
+			{
+				s.name: t.modelo_de_sales_person(s.name)
+				for s in otros
+				if s.employee == e.name and s.name not in de_la_tienda
+			},
 		)
 		for e in empleados
 		if e.user_id not in jefes
 	]
 	return sorted(asesores, key=lambda a: a.nombre)
+
+
+def _otros_sales_persons(empleados: list[str], establecimiento: str) -> list:
+	"""Sales Person activos de esos empleados fuera del establecimiento (otras empresas).
+
+	get_all: solo nombres de Sales Person de los asesores de la tienda, para atribuirles
+	sus ventas; el jefe ya fue validado por la API.
+	"""
+	if not empleados:
+		return []
+	sps = frappe.get_all(
+		"Sales Person",
+		filters={"enabled": 1, "is_group": 0, "employee": ["in", empleados]},
+		fields=["name", "employee", "establecimiento"],
+	)
+	# En Python: un establecimiento vacío (NULL) también es «otro».
+	return [s for s in sps if s.establecimiento != establecimiento]

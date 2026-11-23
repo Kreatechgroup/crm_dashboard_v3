@@ -36,9 +36,12 @@ def construir(t, ctx, asesores: list, vista_tienda: bool) -> dict:
 
 def _datos_asesor(a, t, ctx, inicio_hist) -> dict:
 	usuarios = [a.usuario]
-	sps = a.sales_persons
+	# Ventas: con los Sales Person del asesor en todas las empresas; meta: solo los del tablero.
+	sps = a.sales_persons_de_ventas
 	filas_hist = ventas.facturas_atribuidas(sps, a.usuario, ctx.company, inicio_hist, ctx.hasta, t.modelo_por_defecto)
-	ordenes = consultas.ordenes_del_periodo(list(sps), ctx.company, ctx.desde, ctx.hasta)
+	ordenes = consultas.ordenes_del_periodo(
+		list(sps), ventas.empresas_de_la_moneda(ctx.company), ctx.desde, ctx.hasta
+	)
 	for o in ordenes:
 		o.modelo = o.sales_model_1 or sps.get(o.asesor) or t.modelo_por_defecto
 		o.monto = flt(o.base_net_total) * flt(o.distribucion) / 100
@@ -46,7 +49,7 @@ def _datos_asesor(a, t, ctx, inicio_hist) -> dict:
 	for fila in (*filas_hist, *ordenes):
 		fila.asesor_nombre = a.nombre
 	return {
-		"meta": metas.meta_por_modelo(sps, t.tipo_meta, ctx.desde, ctx.hasta, ctx.company),
+		"meta": metas.meta_por_modelo(a.sales_persons, t.tipo_meta, ctx.desde, ctx.hasta, ctx.company),
 		"facturas": [f for f in filas_hist if ctx.desde <= f.fecha <= ctx.hasta],
 		"facturado_por_mes": ventas.por_mes(filas_hist),
 		"ordenes": ordenes,
@@ -91,6 +94,8 @@ def _tarjeta(nombre, empleado, datos: list[dict], modelos, meses, ctx, detalle: 
 			"meta": m,
 			"facturado": f,
 			"porcentaje": round(f / m * 100) if m else 0,
+			# Al filtrar «Solo Proyectos» o «Solo Retail», la etiqueta usa el avance de esa meta.
+			"estado": ritmo(f, m, ctx.fraccion_del_mes),
 			"facturas": sorted({x.name for x in facturas}),
 			"ordenes": {"monto": _suma(ordenes), "nombres": sorted({x.name for x in ordenes})},
 			"cotizado": {"monto": _suma(cot_mes, "base_net_total"), "nombres": [x.name for x in cot_mes]},
@@ -108,7 +113,7 @@ def _tarjeta(nombre, empleado, datos: list[dict], modelos, meses, ctx, detalle: 
 		"nombre": nombre,
 		"empleado": empleado,
 		"es_tienda": empleado is None,
-		"estado": ritmo(total["facturado"], total["meta"], ctx.fraccion_del_mes),
+		"estado": total["estado"],
 		"columnas": columnas,
 		"barras": [
 			{
@@ -186,6 +191,7 @@ def _documentos(junta) -> dict:
 			{
 				"name": f.name,
 				"asesor": f.asesor_nombre,
+				"empresa": f.empresa,
 				"fecha": str(f.fecha),
 				"cliente": f.cliente,
 				"monto": f.monto,
@@ -205,6 +211,7 @@ def _documentos(junta) -> dict:
 			{
 				"name": o.name,
 				"asesor": o.asesor_nombre,
+				"empresa": o.company,
 				"fecha": str(getdate(o.transaction_date)),
 				"cliente": o.customer_name,
 				"monto": o.monto,

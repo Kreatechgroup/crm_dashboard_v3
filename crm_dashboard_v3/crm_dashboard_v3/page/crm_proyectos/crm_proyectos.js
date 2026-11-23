@@ -64,6 +64,11 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		return modelo === this.datos.modelos[0];
 	}
 
+	// Ventas de otra empresa del asesor (p. ej. Grupo Creative), que también cuentan para la meta.
+	es_otra_empresa(empresa) {
+		return !!empresa && empresa !== this.datos.company;
+	}
+
 	// ------------------------------------------------------------------
 	// Puntos de extensión de la plantilla
 	// ------------------------------------------------------------------
@@ -169,15 +174,15 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	html_vista_embudo() {
 		return `
 			<section aria-label="${__("Indicadores")}" class="crm-kpis">${this.html_kpis()}</section>
-			<div class="crm-cuerpo">
-				<div class="crm-principal">
-					${this.datos.resumen ? this.html_resumen() : ""}
-					${this.html_incoherentes()}
-					<section aria-label="${__("Embudo")}" class="crm-card crm-embudo">${this.html_embudo()}</section>
-					<div class="crm-cerradas-wrap">${this.html_cerradas()}</div>
-				</div>
-				<aside class="crm-card crm-panel" aria-live="polite"></aside>
+			<div class="crm-principal">
+				${this.datos.resumen ? this.html_resumen() : ""}
+				${this.html_incoherentes()}
+				<section aria-label="${this.e(this.titulo_mi_dia())}" class="crm-card crm-mi-dia" aria-live="polite"></section>
+				<section aria-label="${__("Embudo")}" class="crm-card crm-embudo">${this.html_embudo()}</section>
+				<div class="crm-cerradas-wrap">${this.html_cerradas()}</div>
 			</div>
+			<div class="crm-panel-fondo" data-accion="cerrar-panel" hidden></div>
+			<aside class="crm-card crm-panel" role="dialog" aria-modal="false" aria-label="${__("Detalle")}" tabindex="-1" hidden></aside>
 			${this.historico ? this.html_historico() : `<section class="crm-historico crm-card">${this.html_cargando()}</section>`}`;
 	}
 
@@ -513,14 +518,28 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		return d.asesor ? __("Atención · {0}", [this.primer_nombre(this.nombre_alcance())]) : __("Atención de la tienda");
 	}
 
+	// Mi día va en su sección de todo el ancho; el detalle de una oportunidad y las
+	// listas de cada indicador se abren en el panel deslizante de la derecha.
 	pintar_panel() {
+		const $dia = this.$body.find(".crm-mi-dia");
+		if ($dia.length) $dia.html(this.html_mi_dia());
 		const $p = this.$body.find(".crm-panel");
 		if (!$p.length) return;
-		let html;
-		if (this.estado.sel && this.op) html = this.html_detalle();
-		else if (this.estado.lista) html = this.html_lista();
-		else html = this.html_mi_dia();
-		$p.html(html);
+		const detalle = !!(this.estado.sel && this.op);
+		const abierto = detalle || !!this.estado.lista;
+		const estaba = !$p.prop("hidden");
+		$p.html(detalle ? this.html_detalle() : abierto ? this.html_lista() : "");
+		$p.prop("hidden", !abierto);
+		this.$body.find(".crm-panel-fondo").prop("hidden", !abierto);
+		if (abierto && !estaba) $p.trigger("focus");
+		if (abierto) $p.scrollTop(estaba ? $p.scrollTop() : 0);
+	}
+
+	cerrar_panel() {
+		Object.assign(this.estado, { sel: null, lista: null });
+		this.op = null;
+		this.pintar_panel();
+		this.marcar_tarjeta();
 	}
 
 	html_mi_dia() {
@@ -530,14 +549,15 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			: d.asesor
 			? __("Lo que este asesor tiene pendiente, en orden de prioridad")
 			: __("Pendientes de todos los asesores, en orden de prioridad");
+		const POR_FILA = 3;
 		const grupos = d.mi_dia
 			.map((g) => {
 				const ayuda = (g.ayuda_args || []).reduce(
 					(txt, arg, i) => txt.replace(`{${i}}`, i === 0 ? this.dinero(arg) : arg),
 					g.ayuda
 				);
-				const items = g.clave === "vencidas" ? this.html_vencidas() : g.items.slice(0, 3).map((it) => this.html_item(it)).join("");
-				const mas = g.clave !== "vencidas" && g.items.length > 3
+				const items = g.clave === "vencidas" ? this.html_vencidas(POR_FILA) : g.items.slice(0, POR_FILA).map((it) => this.html_item(it)).join("");
+				const mas = g.cantidad > POR_FILA
 					? `<button type="button" class="crm-enlace" data-accion="lista" data-valor="${this.e(g.clave)}">${this.e(__("Ver todas ({0})", [g.cantidad]))}</button>`
 					: "";
 				return `
@@ -545,29 +565,53 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						<div class="crm-grupo-cab">
 							<span class="crm-badge crm-badge-${g.cantidad ? this.e(g.tono) : "verde"}">${this.e(g.cantidad)}</span>
 							<strong>${this.e(g.titulo)}</strong>
+							<span class="crm-grupo-ayuda">· ${this.e(ayuda)}</span>
 						</div>
-						<div class="crm-grupo-ayuda">${this.e(ayuda)}</div>
-						${g.cantidad ? items + mas : `<div class="crm-al-dia">${__("Todo al día.")}</div>`}
+						${this.html_avance_metas(g)}
+						${g.cantidad ? `<div class="crm-grupo-items">${items}</div>${mas}` : `<div class="crm-al-dia">${__("Todo al día.")}</div>`}
 					</div>`;
 			})
 			.join("");
 		return `<h2>${this.e(this.titulo_mi_dia())}</h2><p class="crm-panel-sub">${this.e(sub)}</p>${grupos}`;
 	}
 
+	// En «Escalar al jefe»: cuánto lleva y cuánto le falta de cada meta, y cuántas la completan.
+	html_avance_metas(g) {
+		if (g.clave !== "escalar" || (!g.metas && !g.completan_meta)) return "";
+		const orden = (m) => this.datos.modelos.indexOf(m.modelo);
+		const metas = (g.metas || [])
+			.slice()
+			.sort((a, b) => orden(a) - orden(b))
+			.map((m) =>
+				m.falta > 0
+					? __("{0}: lleva {1} de {2} ({3}%) · faltan {4}", [m.modelo, this.dinero(m.facturado), this.dinero(m.meta), m.porcentaje, this.dinero(m.falta)])
+					: __("{0}: meta cumplida ({1}%)", [m.modelo, m.porcentaje])
+			);
+		if (g.completan_meta) {
+			metas.push(__("{0} completaría la meta: van primero", [crm_tableros.plural(g.completan_meta, __("oportunidad"), __("oportunidades"))]));
+		}
+		return metas.length ? `<p class="crm-grupo-metas">${metas.map((m) => this.e(m)).join(" · ")}</p>` : "";
+	}
+
 	html_item(it) {
 		let valor = it.valor ? this.dinero(it.valor) : crm_tableros.plural(it.dias, __("día"), __("días"));
 		if (it.valor && it.tab === "actividad") valor += ` · ${it.dias} d`;
+		const meta = it.completa_meta
+			? this.tag({ clave: "verde" }, __("Completa la meta de {0}", [it.completa_meta.modelo]), true)
+			: "";
 		return `
-			<div class="crm-item">
+			<div class="crm-item ${it.completa_meta ? "crm-item-meta" : ""}">
 				<button type="button" class="crm-item-boton" data-accion="abrir" data-name="${this.e(it.name)}" data-tab="${this.e(it.tab)}">
-					<span><strong>${this.e(it.cliente)}</strong><span class="crm-item-sub">${this.e(it.sub)}</span></span>
+					<span><strong>${this.e(it.cliente)}</strong><span class="crm-item-sub">${this.e(it.sub)}</span>${meta}</span>
 					<span class="crm-item-valor">${this.e(valor)}</span>
 				</button>
 			</div>`;
 	}
 
-	html_vencidas() {
-		return this.datos.vencidas
+	// ``limite``: en Mi día solo las primeras (las de mayor monto); en el panel, todas.
+	html_vencidas(limite) {
+		const lista = this.datos.vencidas.slice().sort((a, b) => b.monto - a.monto);
+		return (limite ? lista.slice(0, limite) : lista)
 			.map((v) => {
 				const partes = [];
 				if (!this.es_modelo_principal(v.modelo)) partes.push(v.modelo);
@@ -628,7 +672,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		if (clave === "won") {
 			return {
 				titulo: __("Facturado en {0}", [this.mes_en_texto()]),
-				sub: __("Facturas atribuidas por Comisiones Asesor de su orden de venta, o creadas por el asesor sin orden"),
+				sub: __("Facturas atribuidas por Comisiones Asesor de su orden de venta, o creadas por el asesor sin orden, en todas sus empresas"),
 				doctype: "Sales Invoice",
 				nombres: k.meta.facturas,
 				filas: k.meta.filas.map((f) => ({
@@ -639,6 +683,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						f.name,
 						this.fecha(f.fecha),
 						f.modelo,
+						this.es_otra_empresa(f.empresa) ? f.empresa : "",
 						f.propia ? __("sin orden de venta (la creó el asesor)") : f.distribucion !== 100 ? __("{0}% de distribución", [f.distribucion]) : "",
 						f.nota_de_credito ? __("nota de crédito") : "",
 					]
@@ -670,6 +715,16 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		}
 		const g = d.mi_dia.find((x) => x.clave === clave);
 		if (!g) return null;
+		if (clave === "vencidas") {
+			return {
+				titulo: g.titulo,
+				sub: g.ayuda,
+				doctype: "Quotation",
+				nombres: k.vencidas.nombres,
+				html: this.html_vencidas(),
+				filas: [],
+			};
+		}
 		return {
 			titulo: g.titulo,
 			sub: (g.ayuda_args || []).reduce((txt, arg, i) => txt.replace(`{${i}}`, i === 0 ? this.dinero(arg) : arg), g.ayuda),
@@ -678,7 +733,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			filas: g.items.map((it) => ({
 				name: it.name,
 				cliente: it.cliente,
-				sub: it.sub,
+				sub: it.completa_meta ? it.sub + " · " + __("Completa la meta de {0}", [it.completa_meta.modelo]) : it.sub,
 				valor: it.valor ? this.dinero(it.valor) + (it.tab === "actividad" ? ` · ${it.dias} d` : "") : crm_tableros.plural(it.dias, __("día"), __("días")),
 				doctype: "Opportunity",
 				tab: it.tab,
@@ -688,8 +743,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 
 	html_lista() {
 		const l = this.definicion_lista(this.estado.lista);
-		if (!l) return this.html_mi_dia();
-		const filas = l.filas.length
+		if (!l) return "";
+		const filas = l.html
+			? l.html
+			: l.filas.length
 			? l.filas
 					.map((r) =>
 						r.doctype === "Opportunity"
@@ -704,7 +761,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			: `<p class="crm-sub">${__("Sin registros todavía.")}</p>`;
 		this.lista_actual = l;
 		return `
-			<button type="button" class="crm-enlace" data-accion="cerrar-lista">← ${this.e(this.titulo_mi_dia())}</button>
+			<button type="button" class="crm-enlace" data-accion="cerrar-panel">✕ ${__("Cerrar")}</button>
 			<h2 style="margin-top:6px">${this.e(l.titulo)}</h2>
 			<p class="crm-panel-sub">${this.e(l.sub)}</p>
 			${filas}
@@ -718,7 +775,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	html_detalle() {
 		const op = this.op;
 		const prob = op.etapa.probabilidad == null ? __("sin prob.") : `${op.etapa.probabilidad}%`;
-		const volver = this.estado.lista ? this.definicion_lista(this.estado.lista).titulo : this.titulo_mi_dia();
+		const volver = this.estado.lista ? "← " + this.definicion_lista(this.estado.lista).titulo : "✕ " + __("Cerrar");
 		const tabs = [
 			["datos", __("Datos y etapa")],
 			["actividad", __("Opportunity Activity ({0})", [op.historial_total])],
@@ -732,7 +789,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const cuerpo =
 			this.estado.tab === "actividad" ? this.html_tab_actividad() : this.estado.tab === "entregables" ? this.html_tab_entregables() : this.html_tab_datos();
 		return `
-			<button type="button" class="crm-enlace" data-accion="cerrar-detalle">← ${this.e(volver)}</button>
+			<button type="button" class="crm-enlace" data-accion="cerrar-detalle">${this.e(volver)}</button>
 			<div style="margin-top:6px"><span class="crm-chip-etapa crm-chip-etapa-${this.e(op.etapa.clave)}">${this.e(op.etapa.titulo)} · ${this.e(prob)}</span></div>
 			<div class="crm-op-nombre">${this.e(op.cliente)}</div>
 			<div class="crm-op-meta">
@@ -1260,9 +1317,13 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						__("Ver como lo ve {0} →", [this.primer_nombre(t.nombre)])
 				  )}</button>`
 				: "";
+		// Con «Solo Proyectos» o «Solo Retail», el avance es el de la meta de ese modelo.
+		const modo = this.estado.modo_cons;
+		const estado = modo ? t.columnas[modo].estado : t.estado;
+		const texto_estado = modo ? __("{0}: {1}", [modo, estado.texto]) : estado.texto;
 		return `
 			<div class="crm-cons-tarjeta ${t.es_tienda ? "crm-cons-tarjeta-tienda" : ""}">
-				<div class="crm-cons-tarjeta-cab"><strong>${this.e(t.nombre)}</strong>${this.tag(t.estado, t.estado.texto)}${abrir}</div>
+				<div class="crm-cons-tarjeta-cab"><strong>${this.e(t.nombre)}</strong>${this.tag(estado, texto_estado)}${abrir}</div>
 				${tabla}
 				${this.html_comision(t, i, cabeza)}
 				${this.html_barras_cons(t)}
@@ -1405,7 +1466,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const fuente = { facturas: docs.facturas, ordenes: docs.ordenes, cotizado: docs.cotizaciones_mes, vigentes: docs.cotizaciones_vigentes };
 		const titulos = { facturas: __("Facturas"), ordenes: __("Órdenes de venta"), cotizado: __("Cotizaciones del mes"), vigentes: __("Cotizaciones vigentes") };
 		const ayudas = {
-			facturas: __("Facturas del mes atribuidas al asesor por la tabla Comisiones Asesor de su orden de venta (con su % de distribución), más las que creó el asesor sin orden de venta. Son las que cuentan para la meta."),
+			facturas: __("Facturas del mes atribuidas al asesor por la tabla Comisiones Asesor de su orden de venta (con su % de distribución), más las que creó el asesor sin orden de venta, también en otras empresas (p. ej. Grupo Creative). Son las que cuentan para la meta."),
 			ordenes: __("Órdenes de venta del mes separadas por su modelo de venta. Una orden cuenta para la meta cuando se factura."),
 			cotizado: __("Cotizaciones enviadas en el mes, con su estado actual y la oportunidad de la que vienen."),
 			vigentes: __("Cotizaciones abiertas y vigentes hoy: lo que todavía puede convertirse en orden."),
@@ -1429,12 +1490,15 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					? __("Sin orden de venta: la creó el asesor")
 					: __("Orden de venta {0}", [x.modelo]) + (x.distribucion !== 100 ? " · " + __("{0}% de distribución", [x.distribucion]) : "");
 				if (!x.oportunidad) nota += " · " + __("sin oportunidad");
+				if (this.es_otra_empresa(x.empresa)) nota += " · " + x.empresa;
 				if (t.es_tienda) nota = x.asesor + " · " + nota;
 			} else if (det.tipo === "ordenes") {
 				enlaces = chip(x.oportunidad, "op") + chip(x.cotizacion, "qt") + x.facturas.map((f) => chip(f, "inv")).join("");
 				estado = x.facturado >= 100 ? __("Facturada 100%") : x.facturado > 0 ? __("Facturada {0}%", [Math.round(x.facturado)]) : __("Sin facturar");
 				tono = x.facturado >= 100 ? "verde" : "amarillo";
-				nota = x.oportunidad ? "" : __("Sin oportunidad ni cotización ligada");
+				nota = [x.oportunidad ? "" : __("Sin oportunidad ni cotización ligada"), this.es_otra_empresa(x.empresa) ? x.empresa : ""]
+					.filter(Boolean)
+					.join(" · ");
 				if (t.es_tienda) nota = [x.asesor + (x.distribucion !== 100 ? " · " + __("{0}% de distribución", [x.distribucion]) : ""), nota].filter(Boolean).join(" · ");
 			} else {
 				enlaces = chip(x.oportunidad, "op");
@@ -1532,6 +1596,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			else this.estado[ruta[0]][ruta[1]] = $c.val();
 			if (ruta[0] === "af") this.estado.act_ok = false;
 		});
+		$b.on("keydown", (ev) => {
+			if (ev.key === "Escape" && !this.$body.find(".crm-panel").prop("hidden")) this.cerrar_panel();
+		});
 	}
 
 	cambio(clave, valor) {
@@ -1564,6 +1631,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				this.estado.lista = null;
 				this.pintar_panel();
 			},
+			"cerrar-panel": () => this.cerrar_panel(),
 			abrir: () => {
 				const lista = this.estado.lista;
 				this.cargar_oportunidad(name, true, $t.attr("data-tab") || "datos").then(() => {

@@ -260,8 +260,11 @@ def cotizaciones_vigentes(usuarios: list[str], t: ConfigTablero, company: str | 
 	)
 
 
-def ordenes_del_periodo(sales_persons: list[str], company: str | None, desde, hasta) -> list:
-	"""Órdenes de venta del rango atribuidas por la tabla Comisiones Asesor (una fila por Sales Person)."""
+def ordenes_del_periodo(sales_persons: list[str], companias: list[str] | None, desde, hasta) -> list:
+	"""Órdenes de venta del rango atribuidas por la tabla Comisiones Asesor (una fila por Sales Person).
+
+	``companias``: empresas cuyas órdenes cuentan (las de la moneda del tablero).
+	"""
 	if not sales_persons:
 		return []
 	filtros = [
@@ -269,13 +272,14 @@ def ordenes_del_periodo(sales_persons: list[str], company: str | None, desde, ha
 		["Sales Order", "transaction_date", "between", [desde, hasta]],
 		["Comisiones Asesores", "asesor", "in", sales_persons],
 	]
-	if company:
-		filtros.append(["Sales Order", "company", "=", company])
+	if companias:
+		filtros.append(["Sales Order", "company", "in", companias])
 	return frappe.get_list(
 		"Sales Order",
 		filters=filtros,
 		fields=[
 			"name",
+			"company",
 			"transaction_date",
 			"customer_name",
 			"sales_model_1",

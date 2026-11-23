@@ -189,3 +189,160 @@ class TestComision(FrappeTestCase):
 		self.assertAlmostEqual(fila.monto, 500)
 		self.assertAlmostEqual(fila.comision, 6.25)
 		self.assertAlmostEqual(fila.comision_futura, 0)
+
+
+SP_OTRA_EMPRESA = "Asesor de Proyectos Retail Prueba"
+
+
+class TestVentasEnOtrasEmpresas(FrappeTestCase):
+	"""Las ventas del asesor por otras empresas (p. ej. Grupo Creative) cuentan para su meta."""
+
+	def test_asesor_junta_sus_sales_person_de_otras_empresas(self):
+		plus = TABLERO.establecimientos[0]
+		sps = [
+			frappe._dict(name=SP_PROYECTOS, company="Umob", establecimiento=plus),
+			frappe._dict(name=SP_RETAIL, company="Umob", establecimiento=plus),
+			frappe._dict(name=SP_OTRA_EMPRESA, company="Grupo", establecimiento="Otra tienda"),
+		]
+		with (
+			patch.object(contexto, "_empleados_del_usuario", return_value=[frappe._dict(name="EMP-A", employee_name="Asesora", status="Active")]),
+			patch.object(contexto, "_sales_persons_del_usuario", return_value=sps),
+			patch.object(contexto, "es_jefe", return_value=False),
+			patch("frappe.get_cached_value", return_value="GTQ"),
+		):
+			ctx = contexto.obtener(TABLERO, usuario="asesora@prueba.test")
+		self.assertEqual(ctx.sales_persons, {SP_PROYECTOS: PROYECTOS, SP_RETAIL: RETAIL})
+		self.assertEqual(ctx.otros_sales_persons, {SP_OTRA_EMPRESA: PROYECTOS})
+		self.assertEqual(set(ctx.como_asesor().sales_persons_de_ventas), {SP_PROYECTOS, SP_RETAIL, SP_OTRA_EMPRESA})
+
+	def test_la_meta_no_suma_la_copia_de_otra_empresa(self):
+		asesor = Asesor(
+			"EMP-A", "Asesora", "asesora@prueba.test", {SP_PROYECTOS: PROYECTOS}, {SP_OTRA_EMPRESA: PROYECTOS}
+		)
+		with (
+			patch.object(metas, "meta_por_modelo", return_value={PROYECTOS: 171000}) as meta,
+			patch.object(ventas, "facturado", return_value={"monto": 0, "facturas": [], "filas": []}) as facturado,
+		):
+			embudo.meta_y_facturado(asesor, TABLERO, _ctx())
+		self.assertEqual(set(meta.call_args.args[0]), {SP_PROYECTOS})
+		self.assertEqual(set(facturado.call_args.args[0]), {SP_PROYECTOS, SP_OTRA_EMPRESA})
+
+	def test_las_facturas_se_buscan_en_las_empresas_de_la_misma_moneda(self):
+		consultas = []
+
+		def sql(query, params, as_dict=False):
+			consultas.append((query, params))
+			return []
+
+		with (
+			patch.object(ventas, "empresas_de_la_moneda", return_value=["Umob", "Grupo"]),
+			patch.object(ventas, "_tasas_de_comision", return_value={}),
+			patch("frappe.db.sql", side_effect=sql),
+		):
+			ventas.facturas_atribuidas(
+				{SP_PROYECTOS: PROYECTOS}, "asesora@prueba.test", "Umob", date(2026, 10, 1), date(2026, 10, 31), RETAIL
+			)
+		self.assertEqual(len(consultas), 2)
+		for query, params in consultas:
+			self.assertIn("si.company in %(companias)s", query)
+			self.assertEqual(params["companias"], ("Umob", "Grupo"))
+
+	def test_la_tienda_trae_los_sales_person_de_otras_empresas_de_cada_asesor(self):
+		plus = TABLERO.establecimientos[0]
+
+		def get_all(doctype, **kwargs):
+			if doctype == "Sales Person" and "establecimiento" in kwargs.get("fields", []):
+				return [
+					frappe._dict(name=SP_PROYECTOS, employee="EMP-A", establecimiento=plus),
+					frappe._dict(name=SP_OTRA_EMPRESA, employee="EMP-A", establecimiento=None),
+				]
+			return {
+				"Sales Person": [frappe._dict(name=SP_PROYECTOS, employee="EMP-A")],
+				"Employee": [frappe._dict(name="EMP-A", employee_name="Asesora", user_id="asesora@prueba.test")],
+				"Has Role": [],
+			}[doctype]
+
+		with patch("frappe.get_all", side_effect=get_all):
+			asesores = contexto.asesores_de_tienda(TABLERO, plus)
+		self.assertEqual(asesores[0].sales_persons, {SP_PROYECTOS: PROYECTOS})
+		self.assertEqual(asesores[0].otros_sales_persons, {SP_OTRA_EMPRESA: PROYECTOS})
+
+
+def _op(name, monto, modelo=PROYECTOS, usuario="asesora@prueba.test", dias=20):
+	etapa = TABLERO.etapas.etapa("neg")
+	return frappe._dict(
+		name=name,
+		cliente=name,
+		monto=monto,
+		modelo=modelo,
+		asesor_usuario=usuario,
+		asesor="Asesora",
+		dias=dias,
+		etapa=etapa,
+		fecha_cierre=date(2026, 10, 30),
+		proximo={"estado": "ok"},
+		fecha_retomar=None,
+	)
+
+
+class TestEscalarCompletaLaMeta(FrappeTestCase):
+	"""Mi día · Escalar al jefe: primero las oportunidades que completan la meta de su modelo."""
+
+	def _avance(self, facturado_proyectos=100000, facturado_retail=0):
+		filas = [frappe._dict(modelo=PROYECTOS, monto=facturado_proyectos), frappe._dict(modelo=RETAIL, monto=facturado_retail)]
+		return {
+			"asesora@prueba.test": embudo.avance_de_metas(
+				{"meta_por_modelo": {PROYECTOS: 171000, RETAIL: 171000}, "filas": filas}
+			)
+		}
+
+	def test_avance_calcula_lo_que_falta_de_cada_meta(self):
+		avance = self._avance()["asesora@prueba.test"]
+		self.assertEqual(avance[PROYECTOS]["falta"], 71000)
+		self.assertEqual(avance[RETAIL]["falta"], 171000)
+
+	def test_completa_la_meta_de_su_modelo(self):
+		avance = self._avance()
+		self.assertEqual(embudo.completa_la_meta(_op("A", 80000), avance), {"modelo": PROYECTOS, "falta": 71000})
+		# El mismo monto no alcanza la meta de Retail, a la que le falta más.
+		self.assertIsNone(embudo.completa_la_meta(_op("B", 80000, RETAIL), avance))
+
+	def test_meta_ya_cumplida_no_marca(self):
+		self.assertIsNone(embudo.completa_la_meta(_op("A", 500000), self._avance(facturado_proyectos=200000)))
+
+	def test_las_que_completan_la_meta_van_primero(self):
+		ops = [_op("Grande Retail", 150000, RETAIL), _op("Completa Proyectos", 75000), _op("Mediana Retail", 90000, RETAIL)]
+		grupo = {"activas": ops, "pausa": [], "vencidas": []}
+		mi_dia = embudo._mi_dia(grupo, TABLERO.etapas, _ctx(), False, self._avance())
+		escalar = next(g for g in mi_dia if g["clave"] == "escalar")
+		self.assertEqual([i["name"] for i in escalar["items"]], ["Completa Proyectos", "Grande Retail", "Mediana Retail"])
+		self.assertEqual(escalar["items"][0]["completa_meta"]["modelo"], PROYECTOS)
+		self.assertEqual(escalar["completan_meta"], 1)
+		self.assertEqual({m["modelo"] for m in escalar["metas"]}, {PROYECTOS, RETAIL})
+
+
+class TestConsolidadoPorModelo(FrappeTestCase):
+	def test_el_estado_de_cada_modelo_usa_su_propia_meta(self):
+		from crm_dashboard_v3.crm_tableros.proyectos import consolidado
+
+		def factura(modelo, monto):
+			return frappe._dict(
+				name=f"SINV-{modelo}", modelo=modelo, monto=monto, cobrado=monto, distribucion=100,
+				tasa=1, comision=0, comision_futura=0, por_cobrar=0,
+			)
+
+		datos = {
+			"meta": {PROYECTOS: 100000, RETAIL: 100000},
+			"facturas": [factura(PROYECTOS, 120000), factura(RETAIL, 10000)],
+			"facturado_por_mes": {},
+			"ordenes": [],
+			"cotizaciones_mes": [],
+			"cotizaciones_vigentes": [],
+			"abiertas": [],
+			"creadas": [],
+		}
+		tarjeta = consolidado._tarjeta("Asesora", "EMP-A", [datos], [PROYECTOS, RETAIL], [], _ctx(hoy=date(2026, 11, 5)), detalle=False)
+		self.assertEqual(tarjeta["columnas"][PROYECTOS]["estado"]["clave"], "verde")
+		self.assertEqual(tarjeta["columnas"][RETAIL]["estado"]["clave"], "rojo")
+		self.assertIn("10%", tarjeta["columnas"][RETAIL]["estado"]["texto"])
+		self.assertEqual(tarjeta["estado"], tarjeta["columnas"]["Total"]["estado"])
