@@ -343,7 +343,7 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		op.reload()
 		self.assertEqual(op.status, "Open")
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("prop").valor)
-		self.assertTrue(any("CRM Proyectos" in str(m) for m in frappe.message_log))
+		self.assertTrue(any(self.tablero.titulo in str(m) for m in frappe.message_log))
 
 	def test_converted_y_venta_pos_desde_calificar_en_el_mismo_guardado(self):
 		# Requisitos cumplidos en memoria (venta POS), pero el workflow mira la versión

@@ -103,7 +103,7 @@ def validar_oportunidad(doc, method=None):
 			doc.status = anterior.status
 		elif ganada and flujo.bloqueo(doc, ganada.valor):
 			if not ganada_avisada:
-				_avisar_ganada_bloqueada(doc, ganada)
+				_avisar_ganada_bloqueada(doc, ganada, t.titulo)
 			doc.status = anterior.status
 
 	etapa = cfg.por_valor(doc.get(CAMPO_ETAPA))
@@ -143,12 +143,12 @@ def _avisar_ganada_revertida(doc, cfg):
 	)
 
 
-def _avisar_ganada_bloqueada(doc, ganada):
+def _avisar_ganada_bloqueada(doc, ganada, tablero: str):
 	frappe.msgprint(
 		_(
 			"La oportunidad {0} no pasó a {1}: el workflow no lo permite desde «{2}». Gánala desde el "
-			"tablero CRM Proyectos o con la orden de venta. Se guardaron los demás cambios."
-		).format(doc.name, ganada.titulo, doc.get(CAMPO_ETAPA)),
+			"tablero {3} o con la orden de venta. Se guardaron los demás cambios."
+		).format(doc.name, ganada.titulo, doc.get(CAMPO_ETAPA), _(tablero)),
 		title=_("Etapa de la oportunidad"),
 		indicator="orange",
 	)
