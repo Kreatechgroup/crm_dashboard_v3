@@ -184,6 +184,62 @@ def crear_cotizacion(oportunidad, valid_till, transaction_date=None, monto=10000
 	return q
 
 
+def _cliente_de_prueba() -> str:
+	filtros = {"disabled": 0} if frappe.get_meta("Customer").has_field("disabled") else {}
+	existente = frappe.get_all("Customer", filters=filtros, pluck="name", limit=1)
+	if not existente:
+		raise unittest.SkipTest("El sitio de pruebas no tiene clientes.")
+	return existente[0]
+
+
+def crear_factura(oportunidad, dias=0, pos=True, monto=100):
+	"""Factura enviada del asesor de la oportunidad (la crea el usuario de la prueba), fechada hoy + ``dias``.
+
+	Se crea como factura normal y, si ``pos``, se marca ``is_pos`` con set_value: así la
+	prueba no depende del perfil POS, almacenes y formas de pago del sitio; las reglas de
+	venta POS solo leen esa marca. Se revierte al terminar la prueba.
+	"""
+	fecha = add_days(nowdate(), dias)
+	factura = frappe.get_doc(
+		{
+			"doctype": "Sales Invoice",
+			"customer": _cliente_de_prueba(),
+			"company": oportunidad.company,
+			"currency": frappe.get_cached_value("Company", oportunidad.company, "default_currency"),
+			"conversion_rate": 1,
+			"set_posting_time": 1,
+			"posting_date": fecha,
+			"due_date": fecha,
+			"update_stock": 0,
+			"items": [{"item_code": _item_de_prueba(), "qty": 1, "rate": monto}],
+		}
+	)
+	try:
+		completar_obligatorios(factura).insert()
+		factura.submit()
+	except frappe.ValidationError as error:
+		raise unittest.SkipTest(f"El sitio de pruebas no deja crear una factura de prueba: {error}") from error
+	if pos:
+		marcar_pos(factura)
+	return factura
+
+
+def marcar_pos(factura):
+	frappe.db.set_value("Sales Invoice", factura.name, "is_pos", 1)
+	factura.reload()
+	return factura
+
+
+def crear_devolucion(factura):
+	"""Nota de crédito (devolución) enviada contra ``factura`` (créala antes de marcarla POS)."""
+	from erpnext.controllers.sales_and_purchase_return import make_return_doc
+
+	devolucion = make_return_doc("Sales Invoice", factura.name)
+	devolucion.insert()
+	devolucion.submit()
+	return devolucion
+
+
 def poner_en(oportunidad, clave):
 	"""Deja la oportunidad en una etapa sin pasar por el workflow (solo para preparar pruebas)."""
 	frappe.db.set_value("Opportunity", oportunidad.name, CAMPO_ETAPA, CFG.etapa(clave).valor)
