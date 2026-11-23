@@ -59,6 +59,9 @@ def definicion_campos() -> dict:
 				"insert_after": CAMPO_ORDEN_DE_VENTA,
 				"read_only": 1,
 				"no_copy": 1,
+				# Una venta POS gana una sola oportunidad: el índice único lo garantiza aunque
+				# dos peticiones la vinculen al mismo tiempo.
+				"unique": 1,
 				"description": "Factura de Punto de Venta con la que se cerró como ganada (el cliente compró sin orden de venta).",
 			},
 			# Respaldo de la migración a las etapas nuevas: solo se ven si la oportunidad se migró.

@@ -13,7 +13,11 @@ scripts existentes del ERP— y **nunca** hace fallar un guardado por la etapa:
 - Ganada ↔ Converted y Perdida ↔ Lost cuando cambia la etapa;
 - un cambio de status hecho desde ERPNext (declarar perdida) arrastra la etapa si
   el workflow lo permite;
-- no se usa un motivo de pérdida genérico.
+- no se usa un motivo de pérdida genérico;
+- pasar a Ganada fuera del tablero exige los requisitos de Ganada (si faltan, se
+  ignora el cambio de etapa, como con un valor que el workflow no permite);
+- la venta POS vinculada se valida siempre (``venta_pos.validar_vinculo``): ese
+  error sí detiene el guardado, porque es un vínculo inválido, no una etapa.
 
 Los requisitos de cada etapa se validan en el servidor al mover desde el tablero
 (``acciones.cambiar_etapa``), que marca el documento con ``FLAG_TABLERO``.
@@ -22,8 +26,14 @@ Los requisitos de cada etapa se validan en el servidor al mover desde el tablero
 import frappe
 from frappe import _
 
-from crm_dashboard_v3.crm_tableros.common import flujo
-from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_ETAPA, etapa_efectiva, motivos_de
+from crm_dashboard_v3.crm_tableros.common import flujo, venta_pos
+from crm_dashboard_v3.crm_tableros.common.etapas import (
+	CAMPO_ETAPA,
+	CAMPO_FACTURA_POS,
+	etapa_efectiva,
+	faltantes,
+	motivos_de,
+)
 from crm_dashboard_v3.crm_tableros.common.tableros import tablero_de_oportunidad
 
 # Bandera del documento: el cambio de etapa viene del tablero (ya validado).
@@ -31,11 +41,17 @@ FLAG_TABLERO = "cambio_de_etapa_desde_tablero"
 
 
 def validar_oportunidad(doc, method=None):
+	anterior = None if doc.is_new() else doc.get_doc_before_save()
+	# La venta POS se valida en todo guardado (y en toda oportunidad): el campo es de
+	# solo lectura en la UI, pero se puede escribir por API.
+	factura = doc.get(CAMPO_FACTURA_POS)
+	if factura and (anterior is None or anterior.get(CAMPO_FACTURA_POS) != factura):
+		venta_pos.validar_vinculo(doc, anterior)
+
 	t = tablero_de_oportunidad(doc)
 	if not t:
 		return
 	cfg = t.etapas
-	anterior = None if doc.is_new() else doc.get_doc_before_save()
 
 	if anterior is None or anterior.get("lost_reason") != doc.get("lost_reason"):
 		for motivo in motivos_de(doc):
@@ -48,16 +64,23 @@ def validar_oportunidad(doc, method=None):
 	etapa_cambio = anterior is None or anterior.get(CAMPO_ETAPA) != doc.get(CAMPO_ETAPA)
 
 	# Un script escribió una etapa que el workflow no permite: se ignora ese cambio.
+	# Lo mismo si la lleva a Ganada (acción del workflow en el formulario, API) sin
+	# cumplir sus requisitos: el workflow solo mira que haya algo en el campo.
 	if anterior is not None and etapa_cambio and not doc.flags.get(FLAG_TABLERO):
 		if flujo.bloqueo(doc, doc.get(CAMPO_ETAPA), actual=anterior.get(CAMPO_ETAPA)):
+			doc.set(CAMPO_ETAPA, anterior.get(CAMPO_ETAPA))
+			etapa_cambio = False
+		elif _faltan_para_ganar(doc, cfg):
+			_avisar_ganada_revertida(doc, cfg)
 			doc.set(CAMPO_ETAPA, anterior.get(CAMPO_ETAPA))
 			etapa_cambio = False
 
 	status_cambio = anterior is not None and anterior.get("status") != doc.get("status")
 	# Un cambio de status hecho desde ERPNext (p. ej. declarar perdida) arrastra la etapa,
-	# si el workflow lo permite; si no, no se toca para no hacer fallar el guardado.
+	# si el workflow lo permite y, para Ganada, si cumple sus requisitos; si no, no se
+	# toca para no hacer fallar el guardado.
 	destino = cfg.por_status(doc.status) if status_cambio and not etapa_cambio else None
-	if destino and not flujo.bloqueo(doc, destino.valor):
+	if destino and not flujo.bloqueo(doc, destino.valor) and not _faltan_para_ganar(doc, cfg, destino):
 		doc.set(CAMPO_ETAPA, destino.valor)
 		etapa_cambio = True
 
@@ -77,6 +100,25 @@ def validar_oportunidad(doc, method=None):
 	elif not etapa.status and doc.status in ("Lost", "Converted"):
 		# Reabrir una perdida: vuelve a estar abierta.
 		doc.status = "Open"
+
+
+def _faltan_para_ganar(doc, cfg, etapa=None) -> list[str]:
+	"""Requisitos de Ganada que no se cumplen, si la etapa (la de ``doc`` o ``etapa``) es Ganada."""
+	etapa = etapa or cfg.por_valor(doc.get(CAMPO_ETAPA))
+	if not etapa or etapa.status != "Converted":
+		return []
+	return faltantes(doc, etapa, cfg)
+
+
+def _avisar_ganada_revertida(doc, cfg):
+	ganada = cfg.por_status("Converted")
+	frappe.msgprint(
+		_("La oportunidad {0} no pasó a {1}: falta {2}. Se guardaron los demás cambios.").format(
+			doc.name, ganada.titulo, ", ".join(faltantes(doc, ganada, cfg))
+		),
+		title=_("Etapa de la oportunidad"),
+		indicator="orange",
+	)
 
 
 def estado_inicial(doc, method=None):
