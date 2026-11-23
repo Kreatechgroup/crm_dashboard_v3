@@ -30,17 +30,22 @@ def estado_existe(valor: str, doctype: str = "Opportunity") -> bool:
 	return not workflow or any(s.state == valor for s in workflow.states)
 
 
-def bloqueo(doc, destino: str, actual: str | None = None) -> str | None:
+def bloqueo(doc, destino: str, actual: str | None = None, guardado=None) -> str | None:
 	"""Mensaje si el workflow no permite pasar de ``actual`` a ``destino``.
 
 	Si no se da ``actual``, se toma el valor de la etapa que tiene ``doc`` (debe ser
 	todavía el guardado en la base). Devuelve None si la transición está permitida o
 	si ningún workflow controla la etapa.
 
-	Como ``frappe.model.workflow.validate_workflow``, la condición de la transición se
-	evalúa sobre la versión **guardada** (``doc.get_doc_before_save()``) cuando se está
-	guardando, no sobre los cambios en memoria: un campo que la condición exige (p. ej.
-	la venta POS para Ganada desde Calificar) debe estar guardado antes, en otro guardado.
+	La condición de la transición se evalúa sobre ``guardado`` si se da y, si no, sobre
+	``doc`` tal como está:
+
+	- Dentro de un guardado (hook validate) se pasa ``guardado=doc.get_doc_before_save()``,
+	  igual que ``frappe.model.workflow.validate_workflow``: un campo que la condición exige
+	  (p. ej. la venta POS para Ganada desde Calificar) debe estar guardado antes.
+	- Fuera de un guardado (acciones del tablero, la page) no se pasa: ``doc`` es la
+	  versión de la base, y ``get_doc_before_save()`` no sirve porque Frappe no lo limpia
+	  al terminar un ``save()`` y quedaría con la versión anterior a ese guardado.
 	"""
 	workflow = _workflow_de_etapa(doc.doctype)
 	actual = doc.get(CAMPO_ETAPA) if actual is None else actual
@@ -52,10 +57,10 @@ def bloqueo(doc, destino: str, actual: str | None = None) -> str | None:
 	# Mismo criterio que frappe.model.workflow.get_transitions (estado, rol y condición),
 	# sin su chequeo de lectura: el hook también corre en guardados con ignore_permissions.
 	roles = set(frappe.get_roles())
-	guardado = doc.get_doc_before_save() or doc
+	evaluado = guardado or doc
 	for t in workflow.transitions:
 		if t.state == actual and t.next_state == destino and t.allowed in roles:
-			if is_transition_condition_satisfied(t, guardado):
+			if is_transition_condition_satisfied(t, evaluado):
 				return None
 	return _mensaje(workflow.name, actual, destino)
 

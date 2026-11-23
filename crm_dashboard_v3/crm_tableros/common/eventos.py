@@ -73,7 +73,7 @@ def validar_oportunidad(doc, method=None):
 	# Lo mismo si la lleva a Ganada (acción del workflow en el formulario, API) sin
 	# cumplir sus requisitos: el workflow solo mira que haya algo en el campo.
 	if anterior is not None and etapa_cambio and not doc.flags.get(FLAG_TABLERO):
-		if flujo.bloqueo(doc, doc.get(CAMPO_ETAPA), actual=anterior.get(CAMPO_ETAPA)):
+		if flujo.bloqueo(doc, doc.get(CAMPO_ETAPA), actual=anterior.get(CAMPO_ETAPA), guardado=anterior):
 			doc.set(CAMPO_ETAPA, anterior.get(CAMPO_ETAPA))
 			etapa_cambio = False
 		elif _faltan_para_ganar(doc, cfg):
@@ -87,7 +87,11 @@ def validar_oportunidad(doc, method=None):
 	# si el workflow lo permite y, para Ganada, si cumple sus requisitos; si no, no se
 	# toca para no hacer fallar el guardado.
 	destino = cfg.por_status(doc.status) if status_cambio and not etapa_cambio else None
-	if destino and not flujo.bloqueo(doc, destino.valor) and not _faltan_para_ganar(doc, cfg, destino):
+	if (
+		destino
+		and not flujo.bloqueo(doc, destino.valor, guardado=anterior)
+		and not _faltan_para_ganar(doc, cfg, destino)
+	):
 		doc.set(CAMPO_ETAPA, destino.valor)
 		etapa_cambio = True
 	elif status_cambio and doc.status == "Converted" and not doc.flags.get(FLAG_TABLERO):
@@ -101,7 +105,7 @@ def validar_oportunidad(doc, method=None):
 			if not ganada_avisada:
 				_avisar_ganada_revertida(doc, cfg)
 			doc.status = anterior.status
-		elif ganada and flujo.bloqueo(doc, ganada.valor):
+		elif ganada and flujo.bloqueo(doc, ganada.valor, guardado=anterior):
 			if not ganada_avisada:
 				_avisar_ganada_bloqueada(doc, ganada, t.titulo)
 			doc.status = anterior.status

@@ -97,7 +97,9 @@ def cambiar_etapa(doc, destino: Etapa, cfg: ConfigModelo):
 		frappe.throw(_("Una oportunidad ganada no puede cambiar de etapa."), title=_("Etapa"))
 	rel = DatosRelacionados(doc.name)
 	falta = faltantes(doc, destino, cfg, rel)
-	# El workflow que controla embudo_state_v2 también debe permitir el cambio.
+	# El workflow que controla embudo_state_v2 también debe permitir el cambio. Se evalúa
+	# sobre doc tal como está (sin guardado=): si el llamador acaba de guardarlo (p. ej. el
+	# vínculo de la venta POS), su get_doc_before_save() es la versión anterior a ese guardado.
 	bloqueo = flujo.bloqueo(doc, destino.valor)
 	if bloqueo:
 		frappe.throw(bloqueo, title=_("Workflow"))
