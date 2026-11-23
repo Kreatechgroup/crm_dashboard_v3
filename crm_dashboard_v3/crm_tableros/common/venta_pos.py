@@ -187,22 +187,41 @@ def para_revision(facturas: list[str]) -> dict[str, str]:
 	return motivos
 
 
+# Savepoint del aviso: si el comentario falla se deshace solo lo suyo, no la operación de caja.
+_SAVEPOINT_AVISO = "crm_aviso_venta_pos"
+
+
 def _comentar(factura: str, texto: str):
 	"""Comentario en cada oportunidad ganada con ``factura``.
 
 	ignore_permissions: quien cancela o devuelve en caja no suele tener permiso sobre la
 	oportunidad, y el comentario es solo un registro para el asesor y su jefe.
+
+	Corre dentro de on_cancel / on_submit de Sales Invoice en todas las empresas: la
+	cancelación o la nota de crédito nunca dependen de este aviso. Si falla, se deshace
+	lo que el aviso alcanzó a escribir, se quitan sus mensajes y se registra en Error Log.
 	"""
-	for oportunidad in consultas.oportunidades_de_facturas_pos([factura]).values():
-		frappe.get_doc(
-			{
-				"doctype": "Comment",
-				"comment_type": "Comment",
-				"reference_doctype": "Opportunity",
-				"reference_name": oportunidad,
-				"content": texto,
-			}
-		).insert(ignore_permissions=True)
+	mensajes = len(frappe.message_log)
+	frappe.db.savepoint(_SAVEPOINT_AVISO)
+	try:
+		for oportunidad in consultas.oportunidades_de_facturas_pos([factura]).values():
+			frappe.get_doc(
+				{
+					"doctype": "Comment",
+					"comment_type": "Comment",
+					"reference_doctype": "Opportunity",
+					"reference_name": oportunidad,
+					"content": texto,
+				}
+			).insert(ignore_permissions=True)
+	except Exception:
+		frappe.db.rollback(save_point=_SAVEPOINT_AVISO)
+		del frappe.message_log[mensajes:]
+		frappe.log_error(
+			title=_("CRM: no se pudo comentar la venta POS {0} en su oportunidad").format(factura),
+			reference_doctype="Sales Invoice",
+			reference_name=factura,
+		)
 
 
 def avisar_cancelacion(doc, method=None):

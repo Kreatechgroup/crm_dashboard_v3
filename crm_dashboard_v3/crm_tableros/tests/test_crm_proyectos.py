@@ -637,6 +637,43 @@ class TestGanadaConVentaPOS(BaseCRMProyectos):
 		op, _factura = self._ganada_con_venta_pos()
 		self.assertNotIn(op.name, embudo._revision_pos([frappe.session.user], self.tablero, contexto_de_prueba()))
 
+	# NUEVO-2 · Si el comentario falla, la cancelación y la devolución en caja se completan.
+
+	def _sin_comentario(self):
+		"""Hace fallar solo la creación del Comment del aviso; lo demás usa el get_doc real."""
+		get_doc = frappe.get_doc
+
+		def falla_comentario(*args, **kwargs):
+			if args and isinstance(args[0], dict) and args[0].get("doctype") == "Comment":
+				raise frappe.ValidationError("Comentario de prueba que falla")
+			return get_doc(*args, **kwargs)
+
+		return patch("frappe.get_doc", side_effect=falla_comentario)
+
+	def _error_registrado(self, factura):
+		filtros = {"reference_doctype": "Sales Invoice", "reference_name": factura}
+		return frappe.db.exists("Error Log", filtros)
+
+	def test_cancelacion_se_completa_aunque_falle_el_comentario(self):
+		op, factura = self._ganada_con_venta_pos()
+		factura.reload()
+		with self._sin_comentario():
+			factura.cancel()
+		self.assertEqual(frappe.db.get_value("Sales Invoice", factura.name, "docstatus"), 2)
+		self._sin_cambios(op, factura)
+		self.assertFalse(any(factura.name in c for c in self._comentarios(op)))
+		self.assertTrue(self._error_registrado(factura.name))
+
+	def test_devolucion_se_completa_aunque_falle_el_comentario(self):
+		op, factura = self._ganada_con_venta_pos()
+		frappe.db.set_value("Sales Invoice", factura.name, "is_pos", 0)
+		with self._sin_comentario():
+			devolucion = crear_devolucion(factura)
+		self.assertEqual(frappe.db.get_value("Sales Invoice", devolucion.name, "docstatus"), 1)
+		self._sin_cambios(op, factura)
+		self.assertFalse(any(devolucion.name in c for c in self._comentarios(op)))
+		self.assertTrue(self._error_registrado(factura.name))
+
 	# MEDIO-2 · Fecha de la venta: desde la creación de la oportunidad (con margen) y 6 meses.
 
 	def test_fecha_minima(self):
