@@ -99,6 +99,15 @@ class TestCriterio1RequerimientoYDiseno(BaseCRMProyectos):
 		with self.assertRaises(frappe.ValidationError):
 			api.mover_etapa(op.name, "req")
 
+	def test_el_detalle_muestra_lo_que_falta_antes_de_avanzar(self):
+		# La página lista ✓ / ✗ de cada requisito de la siguiente etapa antes del clic.
+		op = crear_oportunidad(presupuesto_declarado_por_el_cliente=5000)
+		sig = api.get_oportunidad(op.name)["siguiente"]
+		self.assertEqual(sig["clave"], "req")
+		cumple = {r["clave"]: r["cumple"] for r in sig["requisitos"]}
+		self.assertEqual(cumple, {"monto": True, "fecha_cierre": False, "proximo_paso": False})
+		self.assertEqual(sig["faltantes"], [r["texto"] for r in sig["requisitos"] if not r["cumple"]])
+
 
 class TestCriterio2ProbabilidadYPronostico(BaseCRMProyectos):
 	"""2. La probabilidad cambia sola al mover de etapa y el pronóstico ponderado se recalcula."""

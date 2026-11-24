@@ -313,11 +313,18 @@ def _opciones_select(meta, fieldname: str) -> list[str]:
 def _etapa_con_faltantes(doc, etapa, cfg, rel):
 	if not etapa:
 		return None
+	# Requisitos con ✓ / ✗ (la página los muestra antes de intentar avanzar) y, si el
+	# workflow no permite la transición, ese motivo como un requisito más sin cumplir.
+	requisitos = etapas.requisitos_de(doc, etapa, cfg, rel)
+	bloqueo = flujo.bloqueo(doc, etapa.valor)
+	if bloqueo:
+		requisitos.append({"clave": "flujo", "texto": bloqueo, "cumple": False})
 	return {
 		"clave": etapa.clave,
 		"titulo": etapa.titulo,
 		"probabilidad": etapa.probabilidad,
-		"faltantes": etapas.faltantes(doc, etapa, cfg, rel) + list(filter(None, [flujo.bloqueo(doc, etapa.valor)])),
+		"requisitos": requisitos,
+		"faltantes": [r["texto"] for r in requisitos if not r["cumple"]],
 	}
 
 

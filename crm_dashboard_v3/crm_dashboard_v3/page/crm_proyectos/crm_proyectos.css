@@ -197,6 +197,15 @@
 .crm-caja-acento-tit { font-size: 12px; font-weight: 600; color: var(--crm-acento-osc); }
 .crm-pista { font-size: 11.5px; color: var(--crm-muted); }
 .crm-pista-centro { font-size: 12px; color: var(--crm-muted); text-align: center; }
+/* Lo que pide la siguiente etapa, antes de intentar avanzar. */
+.crm-requisitos { font-size: 12.5px; color: var(--crm-texto-2); }
+.crm-requisitos-tit { font-weight: 600; margin-bottom: 2px; }
+.crm-requisitos ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.crm-req-ok { color: var(--crm-verde-tx); }
+.crm-req-falta { color: var(--crm-rojo-tx); }
+.crm-req-ir { border: 0; background: none; padding: 0 4px; margin-left: -4px; min-height: 32px; border-radius: 6px; color: inherit; font: inherit; text-align: left; text-decoration: underline dotted; text-underline-offset: 3px; }
+.crm-req-ir:hover { background: var(--crm-rojo-suave); }
+@media (pointer: coarse) { .crm-req-ir { min-height: 44px; } }
 .crm-otras { border-top: 1px solid var(--crm-linea); padding-top: 10px; margin-top: 2px; }
 .crm-otras-tit { font-size: 12px; font-weight: 600; color: var(--crm-muted); margin-bottom: 6px; }
 .crm-otras-botones { display: flex; flex-wrap: wrap; gap: 6px; }

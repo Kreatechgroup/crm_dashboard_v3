@@ -312,10 +312,21 @@ REQUISITOS = {
 }
 
 
+def requisitos_de(doc, etapa: Etapa, cfg: ConfigModelo, rel: DatosRelacionados | None = None) -> list[dict]:
+	"""Cada requisito para entrar a ``etapa`` con su texto y si la oportunidad ya lo cumple.
+
+	La página lo muestra antes de intentar avanzar (✓ / ✗).
+	"""
+	rel = rel or DatosRelacionados(None if doc.get("__islocal") else doc.get("name"))
+	return [
+		{"clave": k, "texto": REQUISITOS[k][0], "cumple": bool(REQUISITOS[k][1](doc, rel, cfg))}
+		for k in etapa.requisitos
+	]
+
+
 def faltantes(doc, etapa: Etapa, cfg: ConfigModelo, rel: DatosRelacionados | None = None) -> list[str]:
 	"""Textos de los requisitos que la oportunidad no cumple para entrar a ``etapa``."""
-	rel = rel or DatosRelacionados(None if doc.get("__islocal") else doc.get("name"))
-	return [REQUISITOS[k][0] for k in etapa.requisitos if not REQUISITOS[k][1](doc, rel, cfg)]
+	return [r["texto"] for r in requisitos_de(doc, etapa, cfg, rel) if not r["cumple"]]
 
 
 def etapa_para_retomar(doc, cfg: ConfigModelo, rel: DatosRelacionados | None = None) -> Etapa:

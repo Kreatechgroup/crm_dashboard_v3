@@ -964,10 +964,60 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			primaria = `
 				${this.estado.intento === "prim" && sig.faltantes.length ? `<div role="alert" class="crm-alerta">${this.e(__("Para avanzar falta: {0}", [sig.faltantes.join(", ")]))}</div>` : ""}
 				<button type="button" class="${es_ganada ? "crm-boton-verde" : "crm-boton-morado"} crm-boton-grande" data-accion="primaria">${this.e(label)}</button>
+				${es_ganada ? "" : this.html_requisitos(sig)}
 				${es_ganada && this.estado.ganar ? this.html_ganar() : ""}
 				<div class="crm-pista-centro">${this.e(pista)}</div>`;
 		}
 		return primaria;
+	}
+
+	// Lo que pide la siguiente etapa, con ✓ / ✗, antes de tocar «Avanzar a…» (el botón sigue
+	// activo). Tocar un ✗ lleva al campo que lo completa, si está en el panel.
+	html_requisitos(sig) {
+		const requisitos = sig.requisitos || [];
+		if (!requisitos.length) return "";
+		const items = requisitos
+			.map((r) => {
+				const marca = r.cumple
+					? `<span aria-hidden="true">✓</span><span class="crm-sr">${__("Listo:")}</span>`
+					: `<span aria-hidden="true">✗</span><span class="crm-sr">${__("Falta:")}</span>`;
+				const texto = `${marca} ${this.e(r.texto)}`;
+				const destino = r.cumple ? null : this.destino_requisito(r.clave);
+				return `<li class="${r.cumple ? "crm-req-ok" : "crm-req-falta"}">${
+					destino ? `<button type="button" class="crm-req-ir" data-accion="ir-requisito" data-valor="${this.e(r.clave)}">${texto}</button>` : texto
+				}</li>`;
+			})
+			.join("");
+		return `
+			<div class="crm-requisitos">
+				<div class="crm-requisitos-tit">${this.e(__("Para avanzar a {0}:", [sig.titulo]))}</div>
+				<ul>${items}</ul>
+			</div>`;
+	}
+
+	// Selector del control del panel que completa un requisito (null si no está en el panel).
+	destino_requisito(clave) {
+		const pp = this.op.proximo_paso;
+		const destinos = {
+			monto: '[data-campo="presupuesto_declarado_por_el_cliente"]',
+			fecha_cierre: '[data-campo="fecha_estimada_aprobacion"]',
+			proximo_paso: pp.texto ? '[data-campo="custom_fecha_proximo_paso"]' : '[data-campo="custom_proximo_paso"]',
+			proximo_paso_vigente: pp.texto ? '[data-campo="custom_fecha_proximo_paso"]' : '[data-campo="custom_proximo_paso"]',
+		};
+		if (clave === "cotizacion_enviada") {
+			// El botón «Crear cotización» solo aparece si aún no hay cotizaciones abiertas.
+			const abiertas = this.op.cotizaciones.filter((q) => !["Lost", "Cancelled"].includes(q.status));
+			return abiertas.length ? null : '[data-accion="crear-cotizacion"]';
+		}
+		return destinos[clave] || null;
+	}
+
+	ir_a_requisito(clave) {
+		const selector = this.destino_requisito(clave);
+		const el = selector && this.$body.find(".crm-panel").find(selector)[0];
+		if (!el) return;
+		el.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+		el.focus({ preventScroll: true });
 	}
 
 	// «Guardando…» / «Guardado ✓» / error, junto a cada campo que se guarda solo.
@@ -1825,6 +1875,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			},
 			historial: () => this.cargar_oportunidad(this.op.name, false, "actividad", Number(valor)),
 			primaria: () => this.primaria(),
+			"ir-requisito": () => this.ir_a_requisito(valor),
 			"modo-ganar": () => {
 				Object.assign(this.estado.ganar, { modo: valor, intento: false });
 				this.pintar_panel();
