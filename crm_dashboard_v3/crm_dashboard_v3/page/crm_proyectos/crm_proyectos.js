@@ -250,8 +250,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			</div>
 			<div class="crm-card">
 				<div class="crm-kpi-titulo">${__("Propuestas vencidas")}</div>
-				<button type="button" class="crm-kpi-valor crm-kpi-rojo" data-accion="erp" data-doctype="Quotation"
-					data-nombres="vencidas">${this.e(this.dinero(k.vencidas.monto))}</button>
+				<button type="button" class="crm-kpi-valor crm-kpi-rojo" data-accion="lista" data-valor="vencidas">${this.e(
+					this.dinero(k.vencidas.monto)
+				)}</button>
 				<div class="crm-kpi-pie">${this.e(
 					__("{0} por renovar o perder · en {1}", [k.vencidas.cantidad, this.titulo_mi_dia()])
 				)}</div>
@@ -729,17 +730,18 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			};
 		}
 		const g = d.mi_dia.find((x) => x.clave === clave);
-		if (!g) return null;
+		// El KPI «Propuestas vencidas» abre esta misma lista (con Renovar y Perder).
 		if (clave === "vencidas") {
 			return {
-				titulo: g.titulo,
-				sub: g.ayuda,
+				titulo: g ? g.titulo : __("Propuestas vencidas"),
+				sub: g ? g.ayuda : __("Cotizaciones enviadas con la vigencia vencida y sin orden de venta"),
 				doctype: "Quotation",
 				nombres: k.vencidas.nombres,
 				html: this.html_vencidas(),
 				filas: [],
 			};
 		}
+		if (!g) return null;
 		return {
 			titulo: g.titulo,
 			sub: (g.ayuda_args || []).reduce((txt, arg, i) => txt.replace(`{${i}}`, i === 0 ? this.dinero(arg) : arg), g.ayuda),
