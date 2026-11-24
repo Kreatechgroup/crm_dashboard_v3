@@ -53,10 +53,13 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		this.op = null;
 		// Elemento que abrió el panel: al cerrarlo, el foco vuelve ahí.
 		this.origen_foco = null;
-		// Guardados de campos en cola (uno a la vez sobre la oportunidad) y turno del
-		// recálculo silencioso del tablero (solo se aplica el más reciente).
+		// Guardados de campos en cola (uno a la vez sobre la oportunidad). El recálculo del
+		// tablero va aparte: diferido, uno en curso a la vez y solo se aplica el más reciente.
 		this.cola_guardado = Promise.resolve();
 		this.turno_tablero = 0;
+		this.temporizador_tablero = null;
+		this.recalculo_en_curso = false;
+		this.recalculo_pendiente = false;
 		this.enlazar_eventos();
 		this.cargar();
 	}
@@ -83,6 +86,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	// ------------------------------------------------------------------
 
 	antes_de_cargar() {
+		// La carga completa trae el tablero al día: el recálculo diferido sobra.
+		this.cancelar_recalculo();
 		this.historico = null;
 		this.consolidado = null;
 	}
@@ -2128,7 +2133,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			.then(
 				() => {
 					if (vigente()) this.estado_campo(campo, "ok");
-					return this.refrescar_oportunidad(nombre).then(() => this.refrescar_tablero_en_silencio());
+					// El tablero se recalcula fuera de la cola: «Avanzar a…» solo espera la oportunidad.
+					this.programar_recalculo();
+					return this.refrescar_oportunidad(nombre);
 				},
 				(error) => {
 					if (vigente()) this.estado_campo(campo, "error", error);
@@ -2137,7 +2144,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			.catch(() => {});
 	}
 
-	// Lo que hay que esperar antes de avanzar de etapa: guardados en curso y sus datos nuevos.
+	// Lo que hay que esperar antes de avanzar de etapa: guardados en curso y los datos nuevos
+	// de la oportunidad (no el recálculo del tablero).
 	esperar_guardado() {
 		return this.cola_guardado;
 	}
@@ -2176,14 +2184,45 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	}
 
 	// KPI, avisos, Mi día y embudo recalculados sin congelar la pantalla ni tocar el panel.
-	// Si llegan varios recálculos seguidos, solo se aplica el último.
-	refrescar_tablero_en_silencio() {
-		const turno = ++this.turno_tablero;
-		return crm_tableros.llamar(this.opciones.metodo, this.args(), { freeze: false }).then((d) => {
-			if (turno !== this.turno_tablero || d.mensaje || this.estado.vista !== "embudo") return;
-			this.datos = d;
-			this.repintar_sin_panel();
-		});
+	// Se pide ~800 ms después del último guardado (varios campos seguidos = un solo recálculo).
+	programar_recalculo() {
+		clearTimeout(this.temporizador_tablero);
+		this.temporizador_tablero = setTimeout(() => this.recalcular_tablero(), 800);
+	}
+
+	// Un solo pedido en curso: si se pide otro mientras tanto, se reprograma para cuando termine.
+	recalcular_tablero() {
+		this.temporizador_tablero = null;
+		if (this.recalculo_en_curso) {
+			this.recalculo_pendiente = true;
+			return;
+		}
+		this.recalculo_en_curso = true;
+		const turno = this.turno_tablero;
+		const terminar = () => {
+			this.recalculo_en_curso = false;
+			if (this.recalculo_pendiente) {
+				this.recalculo_pendiente = false;
+				this.programar_recalculo();
+			}
+		};
+		crm_tableros
+			.llamar(this.opciones.metodo, this.args(), { freeze: false })
+			.then((d) => {
+				// Una carga completa empezada después (acción, mes, Actualizar) manda sobre este resultado.
+				if (turno !== this.turno_tablero || d.mensaje || this.estado.vista !== "embudo") return;
+				this.datos = d;
+				this.repintar_sin_panel();
+			})
+			.then(terminar, terminar);
+	}
+
+	// Descarta el recálculo programado, el reprogramado y el resultado del que esté en curso.
+	cancelar_recalculo() {
+		clearTimeout(this.temporizador_tablero);
+		this.temporizador_tablero = null;
+		this.recalculo_pendiente = false;
+		this.turno_tablero++;
 	}
 
 	repintar_sin_panel() {
