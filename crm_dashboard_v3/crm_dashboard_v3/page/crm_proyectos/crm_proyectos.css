@@ -89,6 +89,16 @@
 	border: 1px solid var(--crm-borde);
 }
 .crm-tarjeta:hover { border-color: var(--crm-acento); }
+/* Tarjeta que pide acción: la acción rápida «Registrar contacto» va pegada debajo. */
+.crm-tarjeta-caja { margin-bottom: 7px; border: 1px solid var(--crm-borde); border-radius: 8px; background: var(--crm-card); overflow: hidden; }
+.crm-tarjeta-caja:hover { border-color: var(--crm-acento); }
+.crm-tarjeta-caja .crm-tarjeta { margin: 0; border: 0; border-radius: 0; }
+.crm-tarjeta-caja .crm-tarjeta[aria-current="true"] { border: 0; padding: 9px 10px; box-shadow: inset 0 0 0 2px var(--crm-acento); }
+.crm-tarjeta-caja > button:focus-visible { outline-offset: -2px; }
+.crm-tarjeta-accion { display: block; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-top: 1px solid var(--crm-linea); background: var(--crm-sutil); color: var(--crm-acento-osc); font-size: 12px; font-weight: 600; text-align: left; }
+.crm-tarjeta-accion:hover { background: var(--crm-acento-bg); }
+.crm-columna-rojas { display: inline-block; margin-left: 4px; vertical-align: middle; }
+.crm-boton-sec[aria-pressed="true"] { border-color: var(--crm-acento); background: var(--crm-acento-bg); color: var(--crm-acento-osc); }
 .crm-tarjeta[aria-current="true"] { border: 2px solid var(--crm-acento); padding: 8px 9px; }
 .crm-tarjeta-fila { display: flex; justify-content: space-between; gap: 6px; align-items: center; }
 .crm-tarjeta-fila + .crm-tarjeta-fila { margin-top: 3px; align-items: baseline; }
@@ -345,7 +355,8 @@ button.crm-kpi-valor:hover,
 	.crm-estado-fila,
 	.crm-boton-texto,
 	.crm-enlace,
-	button.crm-kpi-valor { min-height: 44px; }
+	button.crm-kpi-valor,
+	.crm-tarjeta-accion { min-height: 44px; }
 	.crm-boton-texto { display: inline-flex; align-items: center; }
 }
 

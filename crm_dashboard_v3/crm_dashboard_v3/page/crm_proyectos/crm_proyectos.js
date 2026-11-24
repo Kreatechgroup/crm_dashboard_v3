@@ -27,6 +27,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			vista: "embudo",
 			filtro_modelo: "",
 			filtro_tipo: "",
+			// Embudo: solo las tarjetas que piden acción y orden de cada columna (monto o urgencia).
+			solo_accion: false,
+			orden: "monto",
 			ver_cerradas: false,
 			lista: null,
 			sel: null,
@@ -401,9 +404,37 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		return null;
 	}
 
-	tarjetas_visibles(col) {
-		const { filtro_tipo, filtro_modelo } = this.estado;
-		return col.tarjetas.filter((t) => (!filtro_tipo || t.tipo === filtro_tipo) && (!filtro_modelo || t.modelo === filtro_modelo));
+	// «Solo las que piden acción» aplica a las columnas activas (no a En pausa ni cerradas).
+	tarjetas_visibles(col, con_filtro_accion = true) {
+		const { filtro_tipo, filtro_modelo, solo_accion } = this.estado;
+		const activa = this.datos.columnas.includes(col);
+		return col.tarjetas.filter(
+			(t) =>
+				(!filtro_tipo || t.tipo === filtro_tipo) &&
+				(!filtro_modelo || t.modelo === filtro_modelo) &&
+				(!con_filtro_accion || !solo_accion || !activa || this.pide_accion(t))
+		);
+	}
+
+	// Pide acción: días sin moverse en rojo, o próximo paso vencido o sin definir (los mismos
+	// umbrales de la especificación; solo cambia cómo se filtra y se ordena).
+	pide_accion(t) {
+		return t.semaforo.clave === "rojo" || t.proximo.estado !== "ok";
+	}
+
+	dias_vencido(t) {
+		return t.proximo.estado === "vencido" && t.proximo.fecha ? Math.max(1, frappe.datetime.get_diff(this.datos.hoy, t.proximo.fecha)) : 0;
+	}
+
+	// Urgencia: primero el próximo paso vencido (más días vencido antes), luego sin próximo
+	// paso, luego los días sin moverse; a igualdad, el monto mayor.
+	ordenar_tarjetas(tarjetas) {
+		const por_monto = (a, b) => b.monto - a.monto;
+		if (this.estado.orden !== "urgencia") return tarjetas.slice().sort(por_monto);
+		const nivel = (t) => (t.proximo.estado === "vencido" ? 2 : t.proximo.estado === "vacio" ? 1 : 0);
+		return tarjetas
+			.slice()
+			.sort((a, b) => nivel(b) - nivel(a) || this.dias_vencido(b) - this.dias_vencido(a) || b.dias - a.dias || por_monto(a, b));
 	}
 
 	html_embudo() {
@@ -416,6 +447,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const opc_tipo = [`<option value="">${__("Todos")}</option>`]
 			.concat(d.tipos.map((t) => `<option value="${this.e(t)}" ${this.estado.filtro_tipo === t ? "selected" : ""}>${this.e(t)}</option>`))
 			.join("");
+		const opc_orden = [
+			["monto", __("Por monto")],
+			["urgencia", __("Por urgencia")],
+		]
+			.map(([v, l]) => `<option value="${v}" ${this.estado.orden === v ? "selected" : ""}>${this.e(l)}</option>`)
+			.join("");
 		const ej = (clave, dias, texto) =>
 			`<span class="crm-leyenda-item">${this.tag({ clave, texto: { verde: __("Verde"), amarillo: __("Amarillo"), rojo: __("Rojo") }[clave] }, dias + " d", true)}${this.e(texto)}</span>`;
 		return `
@@ -425,6 +462,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				<div class="crm-embudo-filtros">
 					<label class="crm-campo-inline-sm">${__("Modelo")}<select class="crm-select" data-cambio="filtro_modelo">${opc_modelo}</select></label>
 					<label class="crm-campo-inline-sm">${__("Tipo")}<select class="crm-select" data-cambio="filtro_tipo">${opc_tipo}</select></label>
+					<label class="crm-campo-inline-sm">${__("Ordenar")}<select class="crm-select" data-cambio="orden">${opc_orden}</select></label>
+					<button type="button" class="crm-boton-sec" data-accion="solo-accion" aria-pressed="${this.estado.solo_accion}">${__(
+						"Solo las que piden acción"
+					)}</button>
 					<button type="button" class="crm-boton-sec" data-accion="toggle-cerradas" aria-expanded="${this.estado.ver_cerradas}">${this.e(
 						(this.estado.ver_cerradas ? __("Ocultar") : __("Ver")) + " " + __("en pausa y cerradas ({0})", [total_cerradas])
 					)}</button>
@@ -435,7 +476,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				${ej("verde", 3, __("verde, hasta {0}", [d.dias_verde_max]))}
 				${ej("amarillo", d.dias_verde_max + 3, __("ámbar, de {0} a {1}", [d.dias_verde_max + 1, d.dias_amarillo_max]))}
 				${ej("rojo", d.dias_amarillo_max + 6, __("rojo, más de {0}", [d.dias_amarillo_max]))}
-				<span>${__("· Próximo paso en rojo si no hay o si ya pasó · «Para entrar» = lo que exige cada etapa")}</span>
+				<span>${__(
+					"· Próximo paso en rojo si no hay o si ya pasó · «Piden acción» = días o próximo paso en rojo · «Para entrar» = lo que exige cada etapa"
+				)}</span>
 			</p>
 			<div class="crm-scroll">
 				<div class="crm-columnas">${d.columnas.map((c) => this.html_columna(c)).join("")}</div>
@@ -443,8 +486,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	}
 
 	html_columna(col) {
-		const tarjetas = this.tarjetas_visibles(col).slice().sort((a, b) => b.monto - a.monto);
+		const tarjetas = this.ordenar_tarjetas(this.tarjetas_visibles(col));
 		const total = tarjetas.reduce((s, t) => s + t.monto, 0);
+		const rojas = this.tarjetas_visibles(col, false).filter((t) => this.pide_accion(t)).length;
 		return `
 			<div class="crm-columna">
 				<div class="crm-columna-cab">
@@ -453,6 +497,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					<button type="button" class="crm-columna-total" data-accion="erp" data-doctype="Opportunity" data-nombres="columna:${this.e(col.clave)}">${this.e(
 						crm_tableros.plural(tarjetas.length, __("oportunidad"), __("oportunidades"))
 					)} · ${this.e(this.dinero(total))}</button>
+					${rojas ? `<span class="crm-columna-rojas">${this.tag({ clave: "rojo" }, __("{0} en rojo", [rojas]), true)}</span>` : ""}
 					<div class="crm-columna-req">${this.e(__("Para entrar: {0}", [col.requisitos]))}</div>
 				</div>
 				${tarjetas.length ? tarjetas.map((t) => this.html_tarjeta(t)).join("") : `<div class="crm-vacia">${__("Sin oportunidades")}</div>`}
@@ -470,9 +515,14 @@ class TableroProyectos extends crm_tableros.TableroBase {
 
 	html_tarjeta(t) {
 		const p = t.proximo;
-		const tiene = p.estado !== "vacio";
-		const texto_paso = !tiene ? __("Sin próximo paso") : (p.estado === "vencido" ? __("Vencido:") + " " : "") + p.texto + " · " + this.fecha(p.fecha);
-		return `
+		// Vencido: cuántos días lleva (lo que decide el asesor) en lugar de la fecha.
+		const texto_paso =
+			p.estado === "vacio"
+				? __("Sin próximo paso")
+				: p.estado === "vencido"
+				? __("Vencido hace {0} d:", [this.dias_vencido(t)]) + " " + p.texto
+				: p.texto + " · " + this.fecha(p.fecha);
+		const tarjeta = `
 			<button type="button" class="crm-tarjeta" data-accion="abrir" data-name="${this.e(t.name)}" aria-current="${this.estado.sel === t.name}">
 				<span class="crm-tarjeta-fila">
 					<span class="crm-tarjeta-cliente">${this.e(t.cliente)}</span>
@@ -485,6 +535,14 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				</span>
 				<span class="crm-tarjeta-paso ${p.estado === "ok" ? "" : "crm-tarjeta-paso-mal"}">${this.e(texto_paso)}</span>
 			</button>`;
+		if (!this.pide_accion(t)) return tarjeta;
+		// Acción rápida: abre la pestaña de actividad con el tipo y la fecha ya puestos.
+		return `
+			<div class="crm-tarjeta-caja">
+				${tarjeta}
+				<button type="button" class="crm-tarjeta-accion" data-accion="registrar-contacto" data-name="${this.e(t.name)}"
+					aria-label="${this.e(__("Registrar contacto con {0}", [t.cliente]))}">+ ${__("Registrar contacto")}</button>
+			</div>`;
 	}
 
 	html_cerradas() {
@@ -1818,7 +1876,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	}
 
 	cambio(clave, valor) {
-		if (clave === "filtro_modelo" || clave === "filtro_tipo") {
+		if (clave === "filtro_modelo" || clave === "filtro_tipo" || clave === "orden") {
 			this.estado[clave] = valor;
 			this.repintar_embudo();
 			this.marcar_tarjeta();
@@ -1828,7 +1886,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	accion(nombre, $t) {
 		const valor = $t.attr("data-valor");
 		const name = $t.attr("data-name");
-		if (nombre === "lista" || nombre === "abrir") this.recordar_origen($t);
+		if (nombre === "lista" || nombre === "abrir" || nombre === "registrar-contacto") this.recordar_origen($t);
 		const acciones = {
 			vista: () => {
 				this.estado.vista = valor;
@@ -1868,6 +1926,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				this.estado.intento = null;
 				this.pintar_panel();
 			},
+			"solo-accion": () => {
+				this.estado.solo_accion = !this.estado.solo_accion;
+				this.repintar_embudo();
+				this.marcar_tarjeta();
+			},
+			"registrar-contacto": () => this.registrar_contacto(name),
 			"toggle-cerradas": () => {
 				this.estado.ver_cerradas = !this.estado.ver_cerradas;
 				this.repintar_embudo();
@@ -2170,6 +2234,18 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				// cargar() vuelve a pedir la oportunidad abierta sin reiniciar el panel.
 				this.cargar();
 			});
+	}
+
+	// Acción rápida de la tarjeta: la pestaña de actividad con el tipo de la última actividad
+	// (o el primero) y el próximo contacto por defecto; el foco queda en el comentario.
+	registrar_contacto(nombre) {
+		this.cargar_oportunidad(nombre, true, "actividad").then(() => {
+			const tipos = this.op.opciones.tipos_actividad;
+			const ultimo = this.op.historial.length ? this.op.historial[0].tipo : "";
+			Object.assign(this.estado.af, { tipo: tipos.includes(ultimo) ? ultimo : tipos[0] || "", prox: this.prox_por_defecto() });
+			this.pintar_panel();
+			this.$body.find('.crm-panel [data-modelo="af.com"]').trigger("focus");
+		});
 	}
 
 	// Si un intento anterior dejó el aviso «Falta: …» y ya está completo, se quita antes de guardar.
