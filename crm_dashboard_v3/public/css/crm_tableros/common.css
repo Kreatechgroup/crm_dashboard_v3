@@ -84,6 +84,10 @@
 .crm button { cursor: pointer; font-family: inherit; }
 .crm a { color: var(--crm-acento); }
 .crm h1, .crm h2, .crm h3 { color: var(--crm-texto); }
+/* Foco visible con teclado en todo el tablero (WCAG 2.4.7): Frappe quita el contorno
+   de los enlaces (a:focus { outline: 0 }); aquí vuelve para enlaces, botones y campos. */
+.crm :focus-visible,
+.crm a:focus-visible { outline: 2px solid var(--crm-acento); outline-offset: 2px; }
 
 .crm-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .crm-mono { font-family: var(--font-stack-monospace, ui-monospace, monospace); }
