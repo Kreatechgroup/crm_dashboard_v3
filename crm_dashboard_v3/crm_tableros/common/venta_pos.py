@@ -202,6 +202,7 @@ def _comentar(factura: str, texto: str):
 	lo que el aviso alcanzó a escribir, se quitan sus mensajes y se registra en Error Log.
 	"""
 	mensajes = len(frappe.message_log)
+	oportunidad = None
 	frappe.db.savepoint(_SAVEPOINT_AVISO)
 	try:
 		for oportunidad in consultas.oportunidades_de_facturas_pos([factura]).values():
@@ -217,8 +218,13 @@ def _comentar(factura: str, texto: str):
 	except Exception:
 		frappe.db.rollback(save_point=_SAVEPOINT_AVISO)
 		del frappe.message_log[mensajes:]
+		titulo = (
+			_("CRM: no se pudo comentar la venta POS {0} en la oportunidad {1}").format(factura, oportunidad)
+			if oportunidad
+			else _("CRM: no se pudo comentar la venta POS {0} en su oportunidad").format(factura)
+		)
 		frappe.log_error(
-			title=_("CRM: no se pudo comentar la venta POS {0} en su oportunidad").format(factura),
+			title=titulo,
 			reference_doctype="Sales Invoice",
 			reference_name=factura,
 		)

@@ -737,29 +737,36 @@ class TestGanadaConVentaPOS(BaseCRMProyectos):
 
 		return patch("frappe.get_doc", side_effect=falla_comentario)
 
-	def _error_registrado(self, factura):
-		filtros = {"reference_doctype": "Sales Invoice", "reference_name": factura}
-		return frappe.db.exists("Error Log", filtros)
+	def _sin_error_log(self):
+		"""Mock de frappe.log_error donde lo llama el aviso: el Error Log no persiste tras la prueba."""
+		return patch.object(venta_pos.frappe, "log_error")
+
+	def _assert_error_registrado(self, log_error, factura, oportunidad):
+		llamadas = [c.kwargs for c in log_error.call_args_list if c.kwargs.get("reference_name") == factura]
+		self.assertEqual(len(llamadas), 1, log_error.call_args_list)
+		self.assertEqual(llamadas[0]["reference_doctype"], "Sales Invoice")
+		self.assertIn(factura, llamadas[0]["title"])
+		self.assertIn(oportunidad, llamadas[0]["title"])
 
 	def test_cancelacion_se_completa_aunque_falle_el_comentario(self):
 		op, factura = self._ganada_con_venta_pos()
 		factura.reload()
-		with self._sin_comentario():
+		with self._sin_comentario(), self._sin_error_log() as log_error:
 			factura.cancel()
 		self.assertEqual(frappe.db.get_value("Sales Invoice", factura.name, "docstatus"), 2)
 		self._sin_cambios(op, factura)
 		self.assertFalse(any(factura.name in c for c in self._comentarios(op)))
-		self.assertTrue(self._error_registrado(factura.name))
+		self._assert_error_registrado(log_error, factura.name, op.name)
 
 	def test_devolucion_se_completa_aunque_falle_el_comentario(self):
 		op, factura = self._ganada_con_venta_pos()
 		frappe.db.set_value("Sales Invoice", factura.name, "is_pos", 0)
-		with self._sin_comentario():
+		with self._sin_comentario(), self._sin_error_log() as log_error:
 			devolucion = crear_devolucion(factura)
 		self.assertEqual(frappe.db.get_value("Sales Invoice", devolucion.name, "docstatus"), 1)
 		self._sin_cambios(op, factura)
 		self.assertFalse(any(devolucion.name in c for c in self._comentarios(op)))
-		self.assertTrue(self._error_registrado(factura.name))
+		self._assert_error_registrado(log_error, factura.name, op.name)
 
 	# MEDIO-2 · Fecha de la venta: desde la creación de la oportunidad (con margen) y 6 meses.
 
