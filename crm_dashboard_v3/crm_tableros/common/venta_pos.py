@@ -15,7 +15,8 @@ Condiciones de la factura:
 - no ligada a otra oportunidad (además, el campo es único en la base).
 
 Condiciones de la oportunidad: abierta (no Converted, Lost ni Closed), sin otra venta
-POS y sin órdenes de venta.
+POS, sin órdenes de venta y en una etapa que acepte venta POS (``Etapa.acepta_venta_pos``
+de su tablero; en Proyectos: 1 · Calificar, 2 · Requerimiento y diseño y En pausa).
 
 Si la venta se cancela o se devuelve después de ganar, la oportunidad **no** se toca
 (decisión del negocio): se deja un comentario y el tablero la marca para revisión.
@@ -32,7 +33,9 @@ from crm_dashboard_v3.crm_tableros.common.etapas import (
 	CAMPO_ORDEN_DE_VENTA,
 	STATUS_CERRADOS,
 	DatosRelacionados,
+	etapa_efectiva,
 )
+from crm_dashboard_v3.crm_tableros.common.tableros import tablero_de_oportunidad
 
 MESES_ATRAS = 6
 # Margen antes de la creación de la oportunidad: el asesor a veces la registra unos días
@@ -120,6 +123,30 @@ def motivo_oportunidad_cerrada(estado) -> str | None:
 	return None
 
 
+def acepta_venta_pos(estado) -> bool:
+	"""La etapa de la oportunidad (en su estado guardado) permite ganar con una venta POS.
+
+	Las oportunidades fuera de un tablero no tienen etapas propias: no se restringen.
+	"""
+	t = tablero_de_oportunidad(estado)
+	return not t or etapa_efectiva(estado, t.etapas).acepta_venta_pos
+
+
+def motivo_etapa_sin_venta_pos(estado) -> str | None:
+	"""Por qué la etapa de la oportunidad no acepta una venta POS; None si la acepta."""
+	if acepta_venta_pos(estado):
+		return None
+	cfg = tablero_de_oportunidad(estado).etapas
+	return _(
+		"La oportunidad {0} está en «{1}», donde no se puede ganar con una venta POS: ciérrala como "
+		"ganada con una orden de venta. La venta POS solo se vincula en: {2}."
+	).format(
+		estado.name,
+		etapa_efectiva(estado, cfg).titulo,
+		", ".join(e.titulo for e in cfg.etapas_con_venta_pos),
+	)
+
+
 def validar_vinculo(doc, anterior=None):
 	"""Valida en el servidor la venta POS que se está poniendo en ``doc`` (hook validate).
 
@@ -129,7 +156,8 @@ def validar_vinculo(doc, anterior=None):
 	factura = doc.get(CAMPO_FACTURA_POS)
 	if not factura:
 		return
-	motivo = motivo_oportunidad_cerrada(anterior if anterior is not None else doc)
+	estado = anterior if anterior is not None else doc
+	motivo = motivo_oportunidad_cerrada(estado) or motivo_etapa_sin_venta_pos(estado)
 	if motivo:
 		frappe.throw(motivo, title=_(TITULO))
 	if not candidatas(doc, factura):

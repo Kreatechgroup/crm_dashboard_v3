@@ -322,7 +322,8 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("prop").valor)
 
 	def test_converted_a_mano_con_venta_pos_arrastra_la_etapa(self):
-		op = poner_en(crear_oportunidad(), "prop")
+		# Desde 2 (acepta venta POS): con la venta ya guardada el workflow permite Ganada.
+		op = poner_en(crear_oportunidad(), "req")
 		factura = crear_factura(op)
 		op.set(CAMPO_FACTURA_POS, factura.name)
 		op.save()
@@ -335,7 +336,7 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 	# NUEVO-5 · Converted a mano con requisitos, pero el workflow no permite pasar a Ganada.
 
 	def test_converted_a_mano_bloqueado_por_el_workflow_se_revierte(self):
-		op = poner_en(crear_oportunidad(), "prop")
+		op = poner_en(crear_oportunidad(), "req")
 		factura = crear_factura(op)
 		op.set(CAMPO_FACTURA_POS, factura.name)
 		op.save()
@@ -345,7 +346,7 @@ class TestCriterio4GanadaConverted(BaseCRMProyectos):
 			op.save()
 		op.reload()
 		self.assertEqual(op.status, "Open")
-		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("prop").valor)
+		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("req").valor)
 		self.assertTrue(any(self.tablero.titulo in str(m) for m in frappe.message_log))
 
 	def test_converted_y_venta_pos_desde_calificar_en_el_mismo_guardado(self):
@@ -625,19 +626,19 @@ class TestGanadaConVentaPOS(BaseCRMProyectos):
 
 	# Venta POS y etapa Ganada en el mismo guardado por API.
 
-	def test_venta_pos_y_ganada_desde_propuesta_en_el_mismo_guardado(self):
-		# Desde 3 · Propuesta enviada la transición a Ganada no pide la venta POS en el
-		# workflow; solo los requisitos de Ganada del hook, que sí ven la venta en memoria.
-		# No prueba el caso de Calificar (ver la prueba siguiente).
+	def test_venta_pos_y_ganada_desde_propuesta_en_el_mismo_guardado_se_rechaza(self):
+		# En 3 · Propuesta enviada no se acepta venta POS (decisión del negocio): el vínculo
+		# se rechaza aunque venga con Ganada en el mismo guardado, y no se guarda nada.
 		op = poner_en(crear_oportunidad(), "prop")
 		factura = crear_factura(op)
 		op.set(CAMPO_FACTURA_POS, factura.name)
 		op.set(CAMPO_ETAPA, CFG.etapa("ganada").valor)
-		op.save()
-		op.reload()
-		self.assertEqual(op.get(CAMPO_FACTURA_POS), factura.name)
-		self.assertEqual(op.get(CAMPO_ETAPA), CFG.etapa("ganada").valor)
-		self.assertEqual(op.status, "Converted")
+		with self.assertRaises(frappe.ValidationError):
+			op.save()
+		datos = frappe.db.get_value("Opportunity", op.name, ["status", CAMPO_ETAPA, CAMPO_FACTURA_POS], as_dict=True)
+		self.assertFalse(datos.get(CAMPO_FACTURA_POS))
+		self.assertEqual(datos.get(CAMPO_ETAPA), CFG.etapa("prop").valor)
+		self.assertNotEqual(datos.status, "Converted")
 
 	def test_venta_pos_y_ganada_desde_calificar_en_el_mismo_guardado(self):
 		# Desde Calificar la transición a Ganada exige la venta POS, y Frappe evalúa la
@@ -652,6 +653,46 @@ class TestGanadaConVentaPOS(BaseCRMProyectos):
 		self.assertEqual(op.get(CAMPO_FACTURA_POS), factura.name)
 		self.assertEqual(op.get(CAMPO_ETAPA), CFG.inicial.valor)
 		self.assertNotEqual(op.status, "Converted")
+
+	# Venta POS por etapa (decisión del negocio): solo en 1, 2 y En pausa.
+
+	def test_etapas_que_aceptan_venta_pos(self):
+		self.assertEqual([e.clave for e in CFG.etapas_con_venta_pos], ["cal", "req", "pausa"])
+
+	def _rechazada_por_etapa(self, clave):
+		op = poner_en(crear_oportunidad(), clave)
+		factura = crear_factura(op)
+		detalle = api.get_oportunidad(op.name)
+		self.assertFalse(detalle["acepta_venta_pos"])
+		self.assertEqual(detalle["facturas_pos"], [])
+		with self.assertRaises(frappe.ValidationError) as error:
+			api.vincular_factura_pos(op.name, factura.name)
+		self.assertIn(CFG.etapa(clave).titulo, str(error.exception))
+		self.assertIn("orden de venta", str(error.exception))
+		datos = frappe.db.get_value("Opportunity", op.name, ["status", CAMPO_ETAPA, CAMPO_FACTURA_POS], as_dict=True)
+		self.assertNotEqual(datos.status, "Converted")
+		self.assertEqual(datos.get(CAMPO_ETAPA), CFG.etapa(clave).valor)
+		self.assertFalse(datos.get(CAMPO_FACTURA_POS))
+		# Tampoco por API o desde el formulario: el hook validate aplica la misma regla.
+		op.reload()
+		op.set(CAMPO_FACTURA_POS, factura.name)
+		with self.assertRaises(frappe.ValidationError):
+			op.save()
+		self.assertFalse(frappe.db.get_value("Opportunity", op.name, CAMPO_FACTURA_POS))
+
+	def test_vincular_venta_pos_en_propuesta_enviada_se_rechaza(self):
+		self._rechazada_por_etapa("prop")
+
+	def test_vincular_venta_pos_en_negociacion_se_rechaza(self):
+		self._rechazada_por_etapa("neg")
+
+	def test_detalle_ofrece_venta_pos_en_1_2_y_pausa(self):
+		for clave in ("cal", "req", "pausa"):
+			op = poner_en(crear_oportunidad(), clave)
+			factura = crear_factura(op)
+			detalle = api.get_oportunidad(op.name)
+			self.assertTrue(detalle["acepta_venta_pos"], clave)
+			self.assertIn(factura.name, [f["name"] for f in detalle["facturas_pos"]], clave)
 
 	# ALTO-2 · Una venta, una oportunidad, también con peticiones simultáneas.
 

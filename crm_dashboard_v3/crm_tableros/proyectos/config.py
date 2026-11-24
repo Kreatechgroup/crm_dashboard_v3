@@ -12,6 +12,8 @@ from crm_dashboard_v3.crm_tableros.common.tableros import ConfigTablero
 PROYECTOS = "Proyectos"
 RETAIL = "Retail"
 
+# Venta POS (decisión del negocio): solo en 1 · Calificar, 2 · Requerimiento y diseño y
+# En pausa. Con propuesta enviada o en negociación se gana con orden de venta.
 ETAPAS = ConfigModelo(
 	nombre="CRM Proyectos",
 	etapas=(
@@ -23,6 +25,7 @@ ETAPAS = ConfigModelo(
 			requisitos=("cliente", "tipo", "origen"),
 			texto_requisitos="cliente, tipo y origen",
 			valor="1 · Calificar",
+			acepta_venta_pos=True,
 		),
 		Etapa(
 			"req",
@@ -32,6 +35,7 @@ ETAPAS = ConfigModelo(
 			requisitos=("monto", "fecha_cierre", "proximo_paso"),
 			texto_requisitos="presupuesto, fecha estimada y próximo paso",
 			valor="2 · Requerimiento y diseño",
+			acepta_venta_pos=True,
 		),
 		Etapa(
 			"prop",
@@ -63,6 +67,7 @@ ETAPAS = ConfigModelo(
 			texto_requisitos="fecha para retomar",
 			valor="En pausa",
 			cuenta_pronostico=False,
+			acepta_venta_pos=True,
 		),
 		Etapa(
 			"ganada",

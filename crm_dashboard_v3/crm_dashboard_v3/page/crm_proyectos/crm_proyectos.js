@@ -915,10 +915,11 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		return this.op.facturas_pos.filter((f) => !f.ligada_a);
 	}
 
-	// Desde las etapas que aún no ganan con orden (1, 2, En pausa): el cliente compró en caja (POS).
+	// Solo en las etapas que aceptan venta POS (1, 2 y En pausa; lo decide el servidor):
+	// el cliente compró en caja. En 3 y 4 se gana con orden de venta.
 	html_ganar_pos() {
 		const op = this.op;
-		if (op.siguiente && op.siguiente.clave === "ganada") return "";
+		if (!op.acepta_venta_pos || (op.siguiente && op.siguiente.clave === "ganada")) return "";
 		if (this.estado.ganar) return this.html_ganar();
 		return `
 			<button type="button" class="crm-boton-blanco crm-boton-mediano" data-accion="ganar-pos">${this.e(
@@ -958,7 +959,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const op = this.op;
 		const g = this.estado.ganar;
 		const ordenes = op.ordenes_del_cliente;
-		// Desde 1, 2 o En pausa solo se puede ganar con una venta POS.
+		// Desde 1, 2 o En pausa solo se puede ganar con una venta POS; desde 4 · Negociación
+		// solo con orden de venta (nueva o existente), sin opción POS.
 		const solo_pos = !(op.siguiente && op.siguiente.clave === "ganada");
 		let cuerpo;
 		if (g.modo === "pos") {
@@ -1015,13 +1017,19 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					<button type="button" class="crm-ganar-modo" aria-pressed="${g.modo === "vincular"}" data-accion="modo-ganar" data-valor="vincular">${this.e(
 						__("Vincular una existente ({0})", [ordenes.length])
 					)}</button>
-					<button type="button" class="crm-ganar-modo" aria-pressed="${g.modo === "pos"}" data-accion="modo-ganar" data-valor="pos">${this.e(
-						__("Venta POS ({0})", [this.facturas_pos_elegibles().length])
-					)}</button>
+					${
+						op.acepta_venta_pos
+							? `<button type="button" class="crm-ganar-modo" aria-pressed="${g.modo === "pos"}" data-accion="modo-ganar" data-valor="pos">${this.e(
+									__("Venta POS ({0})", [this.facturas_pos_elegibles().length])
+							  )}</button>`
+							: ""
+					}
 				</div>`;
 		const ayuda = solo_pos
 			? __("El cliente compró en caja (POS) sin orden de venta: elige la factura POS para ligarla y cerrar la oportunidad como ganada.")
-			: __("Toda oportunidad ganada debe quedar ligada a una Sales Order o a una venta POS. Elige una opción.");
+			: op.acepta_venta_pos
+			? __("Toda oportunidad ganada debe quedar ligada a una Sales Order o a una venta POS. Elige una opción.")
+			: __("Toda oportunidad ganada debe quedar ligada a una Sales Order. Elige una opción.");
 		const boton = g.modo === "nueva" ? __("Crear Sales Order") : g.modo === "pos" ? __("Vincular venta POS y marcar ganada") : __("Vincular y marcar ganada");
 		return `
 			<div role="group" aria-label="${__("Cerrar como ganada")}" class="crm-ganar">

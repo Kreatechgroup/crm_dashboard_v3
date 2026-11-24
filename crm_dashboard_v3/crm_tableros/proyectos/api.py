@@ -110,6 +110,7 @@ def get_oportunidad(nombre: str, pagina_historial: int = 0):
 	cotizacion_vigente = next((q for q in rel.cotizaciones_enviadas if q.name == cotizacion_para_orden), None)
 
 	factura_pos = doc.get(CAMPO_FACTURA_POS)
+	acepta_pos = etapa.acepta_venta_pos and not cerrada and not venta_pos.motivo_oportunidad_cerrada(doc)
 
 	meta_op = frappe.get_meta("Opportunity")
 	meta_act = frappe.get_meta("Opportunity Activity")
@@ -153,9 +154,9 @@ def get_oportunidad(nombre: str, pagina_historial: int = 0):
 		# en ese caso la oportunidad queda para revisión.
 		"factura_pos": factura_pos,
 		"revision_pos": venta_pos.para_revision([factura_pos]).get(factura_pos) if factura_pos else None,
-		"facturas_pos": _facturas_pos_para_vincular(doc)
-		if not cerrada and not venta_pos.motivo_oportunidad_cerrada(doc)
-		else [],
+		# Ganar con venta POS solo desde las etapas que la aceptan (1, 2 y En pausa).
+		"acepta_venta_pos": acepta_pos,
+		"facturas_pos": _facturas_pos_para_vincular(doc) if acepta_pos else [],
 		"entregables": entregables.de_documento("Opportunity", doc.name, hoy),
 		"siguiente": _etapa_con_faltantes(doc, siguiente, cfg, rel),
 		"anterior": _etapa_con_faltantes(doc, anterior, cfg, rel),
@@ -439,10 +440,15 @@ def vincular_factura_pos(nombre: str, factura: str):
 
 	Las condiciones de la factura y de la oportunidad las valida el hook validate
 	(``venta_pos.validar_vinculo``) al guardar el vínculo, igual que en cualquier otro
-	guardado. Se puede desde cualquier etapa abierta (el workflow lo permite solo con la
-	factura vinculada).
+	guardado. Solo desde las etapas que aceptan venta POS (1 · Calificar, 2 · Requerimiento
+	y diseño y En pausa; el workflow lo permite solo con la factura vinculada): en
+	3 · Propuesta enviada y 4 · Negociación se rechaza y se gana con orden de venta.
 	"""
 	doc = acciones.oportunidad_del_tablero(nombre, TABLERO, "write")
+	# Antes de tocar nada, con un mensaje claro (el hook validate lo vuelve a validar).
+	motivo = venta_pos.motivo_oportunidad_cerrada(doc) or venta_pos.motivo_etapa_sin_venta_pos(doc)
+	if motivo:
+		frappe.throw(motivo, title=_(venta_pos.TITULO))
 	# Primero se guarda el vínculo: Frappe evalúa la condición de la transición a Ganada
 	# (1, 2 y En pausa exigen la venta POS) sobre la oportunidad ya guardada. Si el cambio
 	# de etapa falla, la petición se revierte completa.

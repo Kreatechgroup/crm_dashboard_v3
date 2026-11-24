@@ -46,6 +46,9 @@ class Etapa:
 	valor: str = ""
 	# Desde esta etapa el workflow permite marcar Ganada (orden de venta creada).
 	puede_ganar: bool = False
+	# Desde esta etapa se puede ganar con una venta POS (el cliente compró en caja). Cada
+	# tablero decide en qué etapas; fuera de ellas el vínculo se rechaza en el servidor.
+	acepta_venta_pos: bool = False
 	status: str | None = None
 	cuenta_pronostico: bool = True
 	actualiza_monto_con_cotizacion: bool = False
@@ -76,6 +79,10 @@ class ConfigModelo:
 		"""Etapa a la que pertenece un valor de embudo_state_v2, nuevo o viejo (None si no se reconoce)."""
 		propia = next((e for e in self.etapas if e.valor == valor), None)
 		return propia or self.etapa(self.mapa_valores.get(valor or ""))
+
+	@property
+	def etapas_con_venta_pos(self) -> list[Etapa]:
+		return [e for e in self.etapas if e.acepta_venta_pos]
 
 	@property
 	def valores(self) -> list[str]:

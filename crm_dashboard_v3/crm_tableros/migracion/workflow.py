@@ -67,8 +67,10 @@ def transiciones_de(t: ConfigTablero) -> list[dict]:
 	"""Transiciones de un tablero: avanzar, regresar, pausar, retomar, ganar y perder.
 
 	Ganar con orden de venta solo desde las etapas con propuesta (``puede_ganar``); con
-	una venta POS (el cliente compró en caja, sin orden) desde cualquier etapa abierta,
-	y solo cuando la oportunidad ya tiene la factura POS vinculada.
+	una venta POS (el cliente compró en caja, sin orden) desde las demás (en Proyectos:
+	1, 2 y En pausa), y solo cuando la oportunidad ya tiene la factura POS vinculada. En
+	las etapas con propuesta la venta POS no se puede vincular (``Etapa.acepta_venta_pos``,
+	validado en ``venta_pos.validar_vinculo``).
 	"""
 	cfg = t.etapas
 	activas = cfg.activas
