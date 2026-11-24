@@ -61,8 +61,10 @@ crm_tableros.texto_de_error = (r) => {
 	} catch (e) {
 		mensajes = [];
 	}
+	// DOMParser no ejecuta scripts ni carga imágenes (un <img onerror> del mensaje no corre).
+	const parser = new DOMParser();
 	const texto = mensajes
-		.map((m) => $("<div>").html(String(m)).text())
+		.map((m) => parser.parseFromString(String(m), "text/html").body.textContent)
 		.join(" ")
 		.trim();
 	return texto || __("No se pudo guardar. Revisa la conexión e intenta de nuevo.");
