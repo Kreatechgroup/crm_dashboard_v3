@@ -2132,16 +2132,47 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			.then(() => crm_tableros.llamar_en_linea(API_PROYECTOS + "guardar_datos", { nombre, datos: { [campo]: valor } }))
 			.then(
 				() => {
-					if (vigente()) this.estado_campo(campo, "ok");
+					if (vigente()) {
+						this.marcar_guardado(campo, valor);
+						this.estado_campo(campo, "ok");
+					}
 					// El tablero se recalcula fuera de la cola: «Avanzar a…» solo espera la oportunidad.
 					this.programar_recalculo();
 					return this.refrescar_oportunidad(nombre);
 				},
 				(error) => {
-					if (vigente()) this.estado_campo(campo, "error", error);
+					if (!vigente()) return;
+					this.restaurar_campo(campo, valor);
+					this.estado_campo(campo, "error", `${error} ${__("Se restauró el valor guardado.")}`);
 				}
 			)
 			.catch(() => {});
+	}
+
+	// El valor guardado de cada control es su valor por defecto (el que pintó el servidor);
+	// tras guardar bien se actualiza, para poder volver a él si un guardado posterior falla.
+	control_campo(campo) {
+		return this.$body.find(`.crm-panel [data-campo="${CSS.escape(campo)}"]`)[0];
+	}
+
+	marcar_guardado(campo, valor) {
+		const el = this.control_campo(campo);
+		if (!el) return;
+		if (el.tagName === "SELECT") Array.from(el.options).forEach((o) => (o.defaultSelected = o.value === valor));
+		else el.defaultValue = valor;
+	}
+
+	// Tras un error el control vuelve al valor del servidor: así lo que se ve, la lista de
+	// lo que falta y «Avanzar a…» coinciden con lo guardado. Si ya se escribió otra cosa, no se toca.
+	restaurar_campo(campo, valor) {
+		const el = this.control_campo(campo);
+		if (!el || el.value !== valor) return;
+		if (el.tagName === "SELECT") {
+			const o = Array.from(el.options).find((x) => x.defaultSelected);
+			el.value = o ? o.value : "";
+		} else {
+			el.value = el.defaultValue;
+		}
 	}
 
 	// Lo que hay que esperar antes de avanzar de etapa: guardados en curso y los datos nuevos
