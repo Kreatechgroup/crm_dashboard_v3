@@ -168,13 +168,18 @@
 	border-radius: 4px;
 	padding: 6px 10px;
 }
+/* Cifra o texto que abre su lista: subrayado punteado y al menos 32 px de alto (Q6). */
 .crm-boton-texto {
 	border: 0;
 	background: none;
-	padding: 0;
+	padding: 0 2px;
+	min-height: 32px;
+	border-radius: 6px;
 	color: inherit;
 	text-align: left;
 	font: inherit;
+	text-decoration: underline dotted;
+	text-underline-offset: 3px;
 }
 .crm-enlace { color: var(--crm-acento); font-weight: 600; font-size: 12.5px; border: 0; background: none; padding: 4px 0; min-height: 32px; }
 
