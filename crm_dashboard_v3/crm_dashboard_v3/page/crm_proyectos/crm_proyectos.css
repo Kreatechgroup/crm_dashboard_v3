@@ -93,7 +93,9 @@
 .crm-tarjeta-fila { display: flex; justify-content: space-between; gap: 6px; align-items: center; }
 .crm-tarjeta-fila + .crm-tarjeta-fila { margin-top: 3px; align-items: baseline; }
 .crm-tarjeta-fila .crm-tag { flex-shrink: 0; }
-.crm-tarjeta-cliente { font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* Nombre del cliente en hasta 2 líneas: en una sola se recortaban casi la cuarta parte. */
+.crm-tarjeta-cliente { font-weight: 600; font-size: 12.5px; line-height: 1.3; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.crm-tarjeta-fila:first-child { align-items: flex-start; }
 /* El monto nunca se parte («Q» en una línea y la cifra en otra): cede espacio el tipo, que se recorta. */
 .crm-tarjeta-monto { font-size: 13px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 .crm-tarjeta-quien { font-size: 11px; font-weight: 600; color: var(--crm-acento); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
