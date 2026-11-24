@@ -10,7 +10,7 @@ from frappe.utils import flt, getdate
 
 from crm_dashboard_v3.crm_tableros.common import acciones, consultas, etapas, metas, venta_pos, ventas
 from crm_dashboard_v3.crm_tableros.common.etapas import CAMPO_FECHA_RETOMAR
-from crm_dashboard_v3.crm_tableros.common.formato import ritmo, semaforo_dias
+from crm_dashboard_v3.crm_tableros.common.formato import fecha_corta, ritmo, semaforo_dias
 from crm_dashboard_v3.crm_tableros.proyectos.config import PROYECTOS
 
 
@@ -253,7 +253,7 @@ def _indicadores(grupo, ventas_asesores, ctx) -> dict:
 def _tarjeta(o, mostrar_asesor: bool) -> dict:
 	extra = ""
 	if o.etapa.clave == "pausa":
-		extra = _("Retomar el {0}").format(o.fecha_retomar) if o.fecha_retomar else _("Sin fecha para retomar")
+		extra = _("Retomar el {0}").format(fecha_corta(o.fecha_retomar)) if o.fecha_retomar else _("Sin fecha para retomar")
 	elif o.status == "Lost":
 		extra = _("Motivo: {0}").format(o.lost_reason or _("sin motivo"))
 	elif o.get("revision_pos"):
