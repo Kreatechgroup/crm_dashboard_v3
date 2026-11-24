@@ -50,6 +50,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		this.op = null;
 		// Elemento que abrió el panel: al cerrarlo, el foco vuelve ahí.
 		this.origen_foco = null;
+		// Guardados de campos en cola (uno a la vez sobre la oportunidad) y turno del
+		// recálculo silencioso del tablero (solo se aplica el más reciente).
+		this.cola_guardado = Promise.resolve();
+		this.turno_tablero = 0;
 		this.enlazar_eventos();
 		this.cargar();
 	}
@@ -180,9 +184,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		return `
 			<section aria-label="${__("Indicadores")}" class="crm-kpis">${this.html_kpis()}</section>
 			<div class="crm-principal">
-				${this.datos.resumen ? this.html_resumen() : ""}
-				${this.html_incoherentes()}
-				${this.html_revision_pos()}
+				<div class="crm-avisos">${this.html_avisos()}</div>
 				<section aria-label="${this.e(this.titulo_mi_dia())}" class="crm-card crm-mi-dia" aria-live="polite"></section>
 				<section aria-label="${__("Embudo")}" class="crm-card crm-embudo">${this.html_embudo()}</section>
 				<div class="crm-cerradas-wrap">${this.html_cerradas()}</div>
@@ -190,6 +192,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			<div class="crm-panel-fondo" data-accion="cerrar-panel" hidden></div>
 			<aside class="crm-card crm-panel" role="dialog" aria-modal="false" aria-label="${__("Detalle")}" tabindex="-1" hidden></aside>
 			${this.historico ? this.html_historico() : `<section class="crm-historico crm-card">${this.html_cargando()}</section>`}`;
+	}
+
+	html_avisos() {
+		return `${this.datos.resumen ? this.html_resumen() : ""}${this.html_incoherentes()}${this.html_revision_pos()}`;
 	}
 
 	// ------------------------------------------------------------------
@@ -542,8 +548,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	// Mi día va en su sección de todo el ancho; el detalle de una oportunidad y las
 	// listas de cada indicador se abren en el panel deslizante de la derecha.
 	pintar_panel() {
-		const $dia = this.$body.find(".crm-mi-dia");
-		if ($dia.length) $dia.html(this.html_mi_dia());
+		// Mi día es aria-live: solo se vuelve a pintar si cambió.
+		this.reemplazar_zona(this.$body.find(".crm-mi-dia"), this.html_mi_dia());
 		const $p = this.$body.find(".crm-panel");
 		if (!$p.length) return;
 		const detalle = !!(this.estado.sel && this.op);
@@ -823,7 +829,6 @@ class TableroProyectos extends crm_tableros.TableroBase {
 
 	html_detalle() {
 		const op = this.op;
-		const prob = op.etapa.probabilidad == null ? __("sin prob.") : `${op.etapa.probabilidad}%`;
 		const volver = this.estado.lista ? "← " + this.definicion_lista(this.estado.lista).titulo : "✕ " + __("Cerrar");
 		const tabs = [
 			["datos", __("Datos y etapa")],
@@ -839,6 +844,17 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			this.estado.tab === "actividad" ? this.html_tab_actividad() : this.estado.tab === "entregables" ? this.html_tab_entregables() : this.html_tab_datos();
 		return `
 			<button type="button" class="crm-enlace" data-accion="cerrar-detalle">${this.e(volver)}</button>
+			<div class="crm-zona crm-zona-cab">${this.html_detalle_cab()}</div>
+			<button type="button" class="crm-boton-acento" data-accion="tab" data-valor="actividad">${__("Opportunity Activity")}</button>
+			<div role="tablist" aria-label="${__("Secciones de la oportunidad")}" class="crm-tabs">${tabs}</div>
+			${cuerpo}`;
+	}
+
+	// Etapa, cliente, días sin moverse y avisos: se actualiza sola tras guardar un campo.
+	html_detalle_cab() {
+		const op = this.op;
+		const prob = op.etapa.probabilidad == null ? __("sin prob.") : `${op.etapa.probabilidad}%`;
+		return `
 			<div style="margin-top:6px"><span class="crm-chip-etapa crm-chip-etapa-${this.e(op.etapa.clave)}">${this.e(op.etapa.titulo)} · ${this.e(prob)}</span></div>
 			<div class="crm-op-nombre">${this.e(op.cliente)}</div>
 			<div class="crm-op-meta">
@@ -854,10 +870,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 							__("Para revisión: {0}. La oportunidad no se modificó.", [op.revision_pos])
 						)}</div>`
 					: ""
-			}
-			<button type="button" class="crm-boton-acento" data-accion="tab" data-valor="actividad">${__("Opportunity Activity")}</button>
-			<div role="tablist" aria-label="${__("Secciones de la oportunidad")}" class="crm-tabs">${tabs}</div>
-			${cuerpo}`;
+			}`;
 	}
 
 	html_tab_datos() {
@@ -895,6 +908,46 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				<div class="crm-pista">${__("El monto de la cotización reemplaza el monto estimado de la oportunidad.")}</div>
 			</div>`
 			: "";
+		return `
+			<div class="crm-form">
+				${op.etapa.clave === "pausa" ? `<div class="crm-aviso-gris">${this.e(__("En pausa hasta el {0}. No cuenta en el pronóstico.", [this.fecha(op.fecha_retomar)]))}</div>` : ""}
+				<label>${this.e(__("Presupuesto declarado por el cliente ({0})", [op.moneda || this.datos.moneda]))}
+					<input type="number" min="0" step="0.01" class="crm-input" data-campo="presupuesto_declarado_por_el_cliente"
+						value="${this.e(op.presupuesto_declarado_por_el_cliente || "")}">${this.html_estado_campo("presupuesto_declarado_por_el_cliente")}</label>
+				${
+					op.moneda && op.moneda !== this.datos.moneda
+						? `<div class="crm-pista">${this.e(
+								__("El tablero lo cuenta como {0} (tasa {1} de la oportunidad).", [this.dinero(op.monto), op.tasa])
+						  )}</div>`
+						: ""
+				}
+				<label>${__("Fecha estimada de aprobación")}
+					<input type="date" class="crm-input" data-campo="fecha_estimada_aprobacion" value="${this.e(op.fecha_estimada_aprobacion || "")}">${this.html_estado_campo(
+						"fecha_estimada_aprobacion"
+					)}</label>
+				<div class="crm-form-2">
+					<label>${__("Próximo paso")}
+						<input type="text" class="crm-input" data-campo="custom_proximo_paso" value="${this.e(pp.texto || "")}" placeholder="${__(
+							"Ej.: enviar render"
+						)}">${this.html_estado_campo("custom_proximo_paso")}</label>
+					<label>${__("Fecha")}
+						<input type="date" class="crm-input" data-campo="custom_fecha_proximo_paso" value="${this.e(pp.fecha || "")}">${this.html_estado_campo(
+							"custom_fecha_proximo_paso"
+						)}</label>
+				</div>
+				${pp.de_actividad && pp.fecha ? `<div class="crm-pista">${__("Tomado de la última Opportunity Activity.")}</div>` : ""}
+				${caja_cot}
+				<div class="crm-pista">${__("Los datos se guardan al cambiar cada campo.")}</div>
+				<div class="crm-zona crm-zona-primaria">${this.html_primaria()}</div>
+				${this.html_ganar_pos()}
+				<div class="crm-zona crm-zona-otras">${this.html_otras_acciones()}</div>
+			</div>`;
+	}
+
+	// Avance a la siguiente etapa (o Ganada): se actualiza sola tras guardar un campo.
+	html_primaria() {
+		const op = this.op;
+		const sig = op.siguiente;
 		let primaria = "";
 		if (sig) {
 			const es_ganada = sig.clave === "ganada";
@@ -914,34 +967,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				${es_ganada && this.estado.ganar ? this.html_ganar() : ""}
 				<div class="crm-pista-centro">${this.e(pista)}</div>`;
 		}
-		return `
-			<div class="crm-form">
-				${op.etapa.clave === "pausa" ? `<div class="crm-aviso-gris">${this.e(__("En pausa hasta el {0}. No cuenta en el pronóstico.", [this.fecha(op.fecha_retomar)]))}</div>` : ""}
-				<label>${this.e(__("Presupuesto declarado por el cliente ({0})", [op.moneda || this.datos.moneda]))}
-					<input type="number" min="0" step="0.01" class="crm-input" data-campo="presupuesto_declarado_por_el_cliente"
-						value="${this.e(op.presupuesto_declarado_por_el_cliente || "")}"></label>
-				${
-					op.moneda && op.moneda !== this.datos.moneda
-						? `<div class="crm-pista">${this.e(
-								__("El tablero lo cuenta como {0} (tasa {1} de la oportunidad).", [this.dinero(op.monto), op.tasa])
-						  )}</div>`
-						: ""
-				}
-				<label>${__("Fecha estimada de aprobación")}
-					<input type="date" class="crm-input" data-campo="fecha_estimada_aprobacion" value="${this.e(op.fecha_estimada_aprobacion || "")}"></label>
-				<div class="crm-form-2">
-					<label>${__("Próximo paso")}
-						<input type="text" class="crm-input" data-campo="custom_proximo_paso" value="${this.e(pp.texto || "")}" placeholder="${__("Ej.: enviar render")}"></label>
-					<label>${__("Fecha")}
-						<input type="date" class="crm-input" data-campo="custom_fecha_proximo_paso" value="${this.e(pp.fecha || "")}"></label>
-				</div>
-				${pp.de_actividad && pp.fecha ? `<div class="crm-pista">${__("Tomado de la última Opportunity Activity.")}</div>` : ""}
-				${caja_cot}
-				<div class="crm-pista">${__("Los datos se guardan al cambiar cada campo.")}</div>
-				${primaria}
-				${this.html_ganar_pos()}
-				${this.html_otras_acciones()}
-			</div>`;
+		return primaria;
+	}
+
+	// «Guardando…» / «Guardado ✓» / error, junto a cada campo que se guarda solo.
+	html_estado_campo(campo) {
+		return `<span class="crm-guardado" id="crm-estado-${this.e(campo)}" data-estado-campo="${this.e(campo)}"></span>`;
 	}
 
 	// Ventas POS que se pueden elegir: las ya ligadas a otra oportunidad se listan deshabilitadas.
@@ -1870,6 +1901,11 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	// ------------------------------------------------------------------
 
 	primaria() {
+		// Si se acaba de cambiar un campo, se espera su guardado y los datos nuevos.
+		this.esperar_guardado().then(() => this.op && this.primaria_lista());
+	}
+
+	primaria_lista() {
 		const sig = this.op.siguiente;
 		if (!sig) return;
 		if (sig.faltantes.length && sig.clave !== "ganada") {
@@ -1934,6 +1970,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	}
 
 	confirmar_secundaria() {
+		this.esperar_guardado().then(() => this.op && this.confirmar_secundaria_lista());
+	}
+
+	confirmar_secundaria_lista() {
 		const sel = this.opciones_secundarias().find((o) => o.k === this.estado.sec);
 		if (!sel) return;
 		const v = this.estado.sec_vals;
@@ -1959,11 +1999,108 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		});
 	}
 
+	// Guarda un campo en segundo plano: sin congelar la pantalla ni volver a pintar el panel
+	// (el foco y el scroll se quedan donde están). Junto al campo se ve «Guardando…»,
+	// «Guardado ✓» o el error. Después se actualizan solo las partes que cambian.
 	guardar_campo(campo, valor) {
 		if (!this.op) return;
-		crm_tableros
-			.llamar(API_PROYECTOS + "guardar_datos", { nombre: this.op.name, datos: { [campo]: valor } }, { freeze: false })
-			.then(() => this.refrescar_tras_accion(__("Guardado")));
+		const nombre = this.op.name;
+		const vigente = () => this.op && this.op.name === nombre;
+		this.estado_campo(campo, "guardando");
+		// En cola: dos campos seguidos (con Tab) no se guardan a la vez sobre la misma oportunidad.
+		this.cola_guardado = this.cola_guardado
+			.then(() => crm_tableros.llamar_en_linea(API_PROYECTOS + "guardar_datos", { nombre, datos: { [campo]: valor } }))
+			.then(
+				() => {
+					if (vigente()) this.estado_campo(campo, "ok");
+					return this.refrescar_oportunidad(nombre).then(() => this.refrescar_tablero_en_silencio());
+				},
+				(error) => {
+					if (vigente()) this.estado_campo(campo, "error", error);
+				}
+			)
+			.catch(() => {});
+	}
+
+	// Lo que hay que esperar antes de avanzar de etapa: guardados en curso y sus datos nuevos.
+	esperar_guardado() {
+		return this.cola_guardado;
+	}
+
+	estado_campo(campo, tipo, error) {
+		const $e = this.$body.find(`.crm-panel [data-estado-campo="${CSS.escape(campo)}"]`);
+		const $c = this.$body.find(`.crm-panel [data-campo="${CSS.escape(campo)}"]`);
+		const textos = { guardando: __("Guardando…"), ok: __("Guardado ✓"), error };
+		$e.attr({ class: `crm-guardado crm-guardado-${tipo}`, role: tipo === "error" ? "alert" : "status" }).text(textos[tipo]);
+		$c.attr("aria-invalid", tipo === "error" ? "true" : null).attr("aria-describedby", $e.attr("id"));
+		clearTimeout($e.data("temporizador"));
+		if (tipo === "ok") {
+			$e.data(
+				"temporizador",
+				setTimeout(() => $e.filter(".crm-guardado-ok").text(""), 4000)
+			);
+		}
+	}
+
+	// Datos nuevos de la oportunidad abierta; en el panel solo se repintan sus zonas que cambian.
+	refrescar_oportunidad(nombre) {
+		return crm_tableros.llamar(API_PROYECTOS + "get_oportunidad", { nombre }, { freeze: false }).then((op) => {
+			if (!this.op || this.op.name !== nombre || this.estado.sel !== nombre) return;
+			this.op = op;
+			this.actualizar_detalle();
+		});
+	}
+
+	actualizar_detalle() {
+		const $p = this.$body.find(".crm-panel");
+		this.reemplazar_zona($p.find(".crm-zona-cab"), this.html_detalle_cab());
+		if (this.estado.tab === "datos" && !this.op.cerrada) {
+			this.reemplazar_zona($p.find(".crm-zona-primaria"), this.html_primaria());
+			this.reemplazar_zona($p.find(".crm-zona-otras"), this.html_otras_acciones());
+		}
+	}
+
+	// KPI, avisos, Mi día y embudo recalculados sin congelar la pantalla ni tocar el panel.
+	// Si llegan varios recálculos seguidos, solo se aplica el último.
+	refrescar_tablero_en_silencio() {
+		const turno = ++this.turno_tablero;
+		return crm_tableros.llamar(this.opciones.metodo, this.args(), { freeze: false }).then((d) => {
+			if (turno !== this.turno_tablero || d.mensaje || this.estado.vista !== "embudo") return;
+			this.datos = d;
+			this.repintar_sin_panel();
+		});
+	}
+
+	repintar_sin_panel() {
+		const $b = this.$body;
+		this.reemplazar_zona($b.find(".crm-kpis"), this.html_kpis());
+		this.reemplazar_zona($b.find(".crm-avisos"), this.html_avisos());
+		this.reemplazar_zona($b.find(".crm-mi-dia"), this.html_mi_dia());
+		const $scroll = $b.find(".crm-embudo .crm-scroll");
+		const izquierda = $scroll.scrollLeft();
+		this.reemplazar_zona($b.find(".crm-embudo"), this.html_embudo());
+		$b.find(".crm-embudo .crm-scroll").scrollLeft(izquierda);
+		this.reemplazar_zona($b.find(".crm-cerradas-wrap"), this.html_cerradas());
+		this.marcar_tarjeta();
+	}
+
+	// Cambia el contenido de una zona solo si cambió (así Mi día, que es aria-live, no se
+	// vuelve a anunciar) y, si el foco estaba dentro, lo pone en el control equivalente.
+	reemplazar_zona($zona, html) {
+		if (!$zona.length || $zona.data("html") === html) return;
+		const activo = document.activeElement;
+		let selector = "";
+		if (activo && $zona[0].contains(activo)) {
+			selector = ["data-accion", "data-valor", "data-name", "data-campo", "data-modelo", "data-cambio"]
+				.filter((a) => activo.hasAttribute(a))
+				.map((a) => `[${a}="${CSS.escape(activo.getAttribute(a))}"]`)
+				.join("");
+		}
+		$zona.html(html).data("html", html);
+		if (selector) {
+			const el = $zona.find(selector)[0];
+			if (el) el.focus();
+		}
 	}
 
 	guardar_actividad() {

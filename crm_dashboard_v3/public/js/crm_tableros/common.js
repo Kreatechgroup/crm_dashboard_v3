@@ -41,6 +41,33 @@ crm_tableros.llamar = (method, args, opciones = {}) =>
 		.call({ method, args, freeze: opciones.freeze !== false, freeze_message: opciones.mensaje })
 		.then((r) => r.message);
 
+// Llamada en segundo plano: sin congelar la pantalla ni abrir el diálogo de error de Frappe.
+// Si falla, la promesa se rechaza con el texto del error para mostrarlo junto al control.
+crm_tableros.llamar_en_linea = (method, args) =>
+	new Promise((resolve, reject) => {
+		const fallo = (r) => reject(crm_tableros.texto_de_error(r));
+		const peticion = frappe.call({ method, args, freeze: false, silent: true, callback: (r) => resolve(r.message), error: fallo });
+		if (peticion && peticion.fail) peticion.fail(fallo);
+	});
+
+crm_tableros.texto_de_error = (r) => {
+	const datos = r && r.responseJSON ? r.responseJSON : r;
+	let mensajes = [];
+	try {
+		mensajes = JSON.parse((datos && datos._server_messages) || "[]").map((m) => {
+			const x = JSON.parse(m);
+			return x.message || x;
+		});
+	} catch (e) {
+		mensajes = [];
+	}
+	const texto = mensajes
+		.map((m) => $("<div>").html(String(m)).text())
+		.join(" ")
+		.trim();
+	return texto || __("No se pudo guardar. Revisa la conexión e intenta de nuevo.");
+};
+
 crm_tableros.API_COMUN = "crm_dashboard_v3.crm_tableros.common.api.";
 crm_tableros.MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
