@@ -48,6 +48,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		this.historico = null;
 		this.consolidado = null;
 		this.op = null;
+		// Elemento que abrió el panel: al cerrarlo, el foco vuelve ahí.
+		this.origen_foco = null;
 		this.enlazar_eventos();
 		this.cargar();
 	}
@@ -164,7 +166,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 
 	refrescar_tras_accion(mensaje) {
 		if (mensaje) frappe.show_alert({ message: mensaje, indicator: "green" });
-		return this.cargar();
+		return this.cargar().then(() => {
+			// La acción cerró el panel (p. ej. ganada o perdida): el foco vuelve a quien lo abrió.
+			if (!this.estado.sel && !this.estado.lista) this.devolver_foco();
+		});
 	}
 
 	// ------------------------------------------------------------------
@@ -549,6 +554,33 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		this.$body.find(".crm-panel-fondo").prop("hidden", !abierto);
 		if (abierto && !estaba) $p.trigger("focus");
 		if (abierto) $p.scrollTop(estaba ? $p.scrollTop() : 0);
+		if (estaba && !abierto) this.devolver_foco();
+	}
+
+	// Se recuerda solo al abrir el panel (no al navegar dentro de él).
+	recordar_origen($t) {
+		if (!this.$body.find(".crm-panel").prop("hidden")) return;
+		this.origen_foco = {
+			el: $t[0],
+			accion: $t.attr("data-accion"),
+			name: $t.attr("data-name") || "",
+			valor: $t.attr("data-valor") || "",
+		};
+	}
+
+	// Si el elemento se volvió a pintar, se busca su equivalente (la misma tarjeta o botón).
+	devolver_foco() {
+		const o = this.origen_foco;
+		this.origen_foco = null;
+		if (!o) return;
+		let el = o.el && document.body.contains(o.el) ? o.el : null;
+		if (!el) {
+			const sel = o.name
+				? `.crm-tarjeta[data-name="${CSS.escape(o.name)}"], [data-accion="${CSS.escape(o.accion)}"][data-name="${CSS.escape(o.name)}"]`
+				: `[data-accion="${CSS.escape(o.accion)}"][data-valor="${CSS.escape(o.valor)}"]`;
+			el = this.$body.find(sel).filter(":visible")[0];
+		}
+		if (el) el.focus();
 	}
 
 	cerrar_panel() {
@@ -1715,6 +1747,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	accion(nombre, $t) {
 		const valor = $t.attr("data-valor");
 		const name = $t.attr("data-name");
+		if (nombre === "lista" || nombre === "abrir") this.recordar_origen($t);
 		const acciones = {
 			vista: () => {
 				this.estado.vista = valor;
