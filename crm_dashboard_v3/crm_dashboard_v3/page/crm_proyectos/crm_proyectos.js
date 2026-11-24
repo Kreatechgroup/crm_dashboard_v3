@@ -910,6 +910,11 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			</div>`;
 	}
 
+	// Ventas POS que se pueden elegir: las ya ligadas a otra oportunidad se listan deshabilitadas.
+	facturas_pos_elegibles() {
+		return this.op.facturas_pos.filter((f) => !f.ligada_a);
+	}
+
 	// Desde las etapas que aún no ganan con orden (1, 2, En pausa): el cliente compró en caja (POS).
 	html_ganar_pos() {
 		const op = this.op;
@@ -917,7 +922,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		if (this.estado.ganar) return this.html_ganar();
 		return `
 			<button type="button" class="crm-boton-blanco crm-boton-mediano" data-accion="ganar-pos">${this.e(
-				__("¿Compró en caja? Ganada con venta POS ({0})", [op.facturas_pos.length])
+				__("¿Compró en caja? Ganada con venta POS ({0})", [this.facturas_pos_elegibles().length])
 			)}</button>`;
 	}
 
@@ -1011,7 +1016,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						__("Vincular una existente ({0})", [ordenes.length])
 					)}</button>
 					<button type="button" class="crm-ganar-modo" aria-pressed="${g.modo === "pos"}" data-accion="modo-ganar" data-valor="pos">${this.e(
-						__("Venta POS ({0})", [op.facturas_pos.length])
+						__("Venta POS ({0})", [this.facturas_pos_elegibles().length])
 					)}</button>
 				</div>`;
 		const ayuda = solo_pos
