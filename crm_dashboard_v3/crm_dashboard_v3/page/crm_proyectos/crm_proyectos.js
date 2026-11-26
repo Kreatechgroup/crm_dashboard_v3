@@ -3,6 +3,8 @@
 // contexto, encabezado, mes, tienda, "Ver:" de jefes y mensaje de sin acceso.
 
 const API_PROYECTOS = "crm_dashboard_v3.crm_tableros.proyectos.api.";
+// Tarjetas visibles por columna del embudo antes de «Ver más».
+const TARJETAS_POR_COLUMNA = 6;
 
 frappe.pages["crm-proyectos"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
@@ -30,6 +32,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			// Embudo: solo las tarjetas que piden acción y orden de cada columna (monto o urgencia).
 			solo_accion: false,
 			orden: "monto",
+			// Columnas ampliadas con «Ver más», por clave; se mantienen al cambiar filtros.
+			expandidas: {},
 			ver_cerradas: false,
 			lista: null,
 			sel: null,
@@ -491,9 +495,11 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	}
 
 	html_columna(col) {
-		const tarjetas = this.ordenar_tarjetas(this.tarjetas_visibles(col));
+		// Total y «N en rojo» cuentan todas las tarjetas (con filtros); el corte solo cambia cuántas se pintan.
+		const tarjetas = this.tarjetas_en_orden(col);
 		const total = tarjetas.reduce((s, t) => s + t.monto, 0);
 		const rojas = this.tarjetas_visibles(col, false).filter((t) => this.pide_accion(t)).length;
+		const corte = this.cortar_columna(col, tarjetas);
 		return `
 			<div class="crm-columna">
 				<div class="crm-columna-cab">
@@ -505,8 +511,44 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					${rojas ? `<span class="crm-columna-rojas">${this.tag({ clave: "rojo" }, __("{0} en rojo", [rojas]), true)}</span>` : ""}
 					<div class="crm-columna-req">${this.e(__("Para entrar: {0}", [col.requisitos]))}</div>
 				</div>
-				${tarjetas.length ? tarjetas.map((t) => this.html_tarjeta(t)).join("") : `<div class="crm-vacia">${__("Sin oportunidades")}</div>`}
+				${
+					tarjetas.length
+						? corte.visibles.map((t) => this.html_tarjeta(t)).join("") +
+						  this.html_ver_mas(col, corte, { es: (t) => this.pide_accion(t), texto: (n) => __("{0} en rojo", [n]) })
+						: `<div class="crm-vacia">${__("Sin oportunidades")}</div>`
+				}
 			</div>`;
+	}
+
+	// Orden en que se pintan: las columnas activas según «Ordenar»; En pausa y cerradas, como llegan.
+	tarjetas_en_orden(col) {
+		const tarjetas = this.tarjetas_visibles(col);
+		return this.datos.columnas.includes(col) ? this.ordenar_tarjetas(tarjetas) : tarjetas;
+	}
+
+	// Primeras TARJETAS_POR_COLUMNA y el resto tras «Ver más». La tarjeta abierta en el panel
+	// (estado.sel) se pinta aunque quede después del corte, para marcarla y devolverle el foco.
+	cortar_columna(col, tarjetas) {
+		return crm_tableros.cortar_lista(tarjetas, {
+			limite: TARJETAS_POR_COLUMNA,
+			ampliada: !!this.estado.expandidas[col.clave],
+			fijar: (t) => t.name === this.estado.sel,
+		});
+	}
+
+	// «Ver 25 más · 9 en rojo» o «Ver menos» al pie de una columna larga. Cuenta las urgentes
+	// que quedan ocultas para no esconder trabajo pendiente.
+	html_ver_mas(col, corte, urgentes) {
+		if (!corte.cortable) return "";
+		const ampliada = !!this.estado.expandidas[col.clave];
+		const n_urgentes = ampliada ? 0 : corte.ocultas.filter(urgentes.es).length;
+		const texto = ampliada ? __("Ver menos") : __("Ver {0} más", [corte.ocultas.length]);
+		return `
+			<button type="button" class="crm-columna-mas" data-accion="ampliar-columna" data-valor="${this.e(col.clave)}" aria-expanded="${ampliada}">
+				<span>${this.e(texto)}${
+			n_urgentes ? ` <span class="crm-columna-mas-rojas">· ${this.e(urgentes.texto(n_urgentes))}</span>` : ""
+		}<span class="crm-sr"> · ${this.e(col.titulo)}</span></span>
+			</button>`;
 	}
 
 	// Modelo (si no es el principal), asesor (en la vista de tienda) y tipo de oportunidad.
@@ -555,8 +597,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const vacios = { pausa: __("Nada en pausa"), ganada: __("Aún no hay ganadas"), perdida: __("Aún no hay perdidas") };
 		const cols = this.datos.cerradas
 			.map((col) => {
-				const tarjetas = this.tarjetas_visibles(col);
+				const tarjetas = this.tarjetas_en_orden(col);
 				const total = tarjetas.reduce((s, t) => s + t.monto, 0);
+				const corte = this.cortar_columna(col, tarjetas);
 				return `
 					<div class="crm-columna crm-columna-${this.e(col.clave)}">
 						<div class="crm-columna-cab">
@@ -566,7 +609,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						</div>
 						${
 							tarjetas.length
-								? tarjetas
+								? corte.visibles
 										.map(
 											(t) => `
 							<button type="button" class="crm-tarjeta" data-accion="abrir" data-name="${this.e(t.name)}" aria-current="${this.estado.sel === t.name}">
@@ -575,7 +618,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 								<span class="crm-tarjeta-extra ${t.revision ? "crm-tarjeta-revision" : ""}">${this.e(t.extra || t.etapa)}</span>
 							</button>`
 										)
-										.join("")
+										.join("") +
+								  this.html_ver_mas(col, corte, { es: (t) => t.revision, texto: (n) => __("{0} para revisión", [n]) })
 								: `<div class="crm-vacia">${vacios[col.clave] || __("Sin oportunidades")}</div>`
 						}
 					</div>`;
@@ -594,8 +638,38 @@ class TableroProyectos extends crm_tableros.TableroBase {
 	}
 
 	marcar_tarjeta() {
+		const sel = this.estado.sel || "";
+		const selector = `.crm-tarjeta[data-name="${CSS.escape(sel)}"]`;
+		// Abierta desde Mi día o una lista y oculta tras «Ver más»: se vuelve a pintar el embudo,
+		// que la muestra aunque quede después del corte.
+		if (sel && !this.$body.find(selector).length && this.tarjeta_en_vista(sel)) this.repintar_embudo();
 		this.$body.find(".crm-tarjeta").attr("aria-current", "false");
-		this.$body.find(`.crm-tarjeta[data-name="${CSS.escape(this.estado.sel || "")}"]`).attr("aria-current", "true");
+		this.$body.find(selector).attr("aria-current", "true");
+	}
+
+	// La tarjeta pasa los filtros y su columna está a la vista (sin contar el corte).
+	tarjeta_en_vista(nombre) {
+		if (!this.datos || !this.$body.find(".crm-embudo").length) return false;
+		const cols = this.estado.ver_cerradas ? this.todas_las_columnas() : this.datos.columnas;
+		return cols.some((c) => this.tarjetas_visibles(c).some((t) => t.name === nombre));
+	}
+
+	// «Ver más» / «Ver menos» de una columna. Al ampliar, el foco pasa a la primera tarjeta
+	// que estaba oculta; al plegar, se queda en el botón.
+	ampliar_columna(clave) {
+		const col = this.todas_las_columnas().find((c) => c.clave === clave);
+		if (!col) return;
+		const ampliar = !this.estado.expandidas[clave];
+		const primera = ampliar ? this.cortar_columna(col, this.tarjetas_en_orden(col)).ocultas[0] : null;
+		if (ampliar) this.estado.expandidas[clave] = true;
+		else delete this.estado.expandidas[clave];
+		this.repintar_embudo();
+		this.marcar_tarjeta();
+		const $zona = this.$body.find(".crm-embudo, .crm-cerradas-wrap");
+		const destino = primera
+			? $zona.find(`.crm-tarjeta[data-name="${CSS.escape(primera.name)}"]`)[0]
+			: $zona.find(`[data-accion="ampliar-columna"][data-valor="${CSS.escape(clave)}"]`)[0];
+		if (destino) destino.focus();
 	}
 
 	// ------------------------------------------------------------------
@@ -1937,6 +2011,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				this.marcar_tarjeta();
 			},
 			"registrar-contacto": () => this.registrar_contacto(name),
+			"ampliar-columna": () => this.ampliar_columna(valor),
 			"toggle-cerradas": () => {
 				this.estado.ver_cerradas = !this.estado.ver_cerradas;
 				this.repintar_embudo();

@@ -108,6 +108,23 @@
 .crm-tarjeta-accion { display: block; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-top: 1px solid var(--crm-linea); background: var(--crm-sutil); color: var(--crm-acento-osc); font-size: 12px; font-weight: 600; text-align: left; }
 .crm-tarjeta-accion:hover { background: var(--crm-acento-bg); }
 .crm-columna-rojas { display: inline-block; margin-left: 4px; vertical-align: middle; }
+/* «Ver N más · M en rojo» / «Ver menos» al pie de una columna larga del embudo. */
+.crm-columna-mas {
+	display: flex;
+	width: 100%;
+	align-items: center;
+	justify-content: center;
+	min-height: 36px;
+	padding: 4px 8px;
+	border: 1px dashed var(--crm-input-borde);
+	border-radius: 8px;
+	background: transparent;
+	color: var(--crm-acento-osc);
+	font-size: 12.5px;
+	font-weight: 600;
+}
+.crm-columna-mas:hover { background: var(--crm-acento-bg); border-style: solid; border-color: var(--crm-acento); }
+.crm-columna-mas-rojas { color: var(--crm-rojo); }
 .crm-boton-sec[aria-pressed="true"] { border-color: var(--crm-acento); background: var(--crm-acento-bg); color: var(--crm-acento-osc); }
 .crm-tarjeta[aria-current="true"] { border: 2px solid var(--crm-acento); padding: 8px 9px; }
 .crm-tarjeta-fila { display: flex; justify-content: space-between; gap: 6px; align-items: center; }
@@ -369,7 +386,8 @@ button.crm-kpi-valor:hover,
 	.crm-boton-texto,
 	.crm-enlace,
 	button.crm-kpi-valor,
-	.crm-tarjeta-accion { min-height: 44px; }
+	.crm-tarjeta-accion,
+	.crm-columna-mas { min-height: 44px; }
 	.crm-boton-texto { display: inline-flex; align-items: center; }
 }
 

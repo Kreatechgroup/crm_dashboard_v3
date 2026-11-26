@@ -9,6 +9,20 @@ crm_tableros.dinero = (monto, moneda) => format_currency(monto || 0, moneda, 2);
 
 crm_tableros.plural = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
 
+// Lista larga mostrada por partes: las primeras `limite` en el orden recibido y el resto
+// detrás de «Ver más». Si solo sobran `holgura` o menos, se muestran todas (no tiene
+// sentido un «Ver 1 más»). Las que cumplen `fijar` (p. ej. la tarjeta abierta en el panel)
+// se muestran aunque queden después del corte, en su orden.
+crm_tableros.cortar_lista = (items, { limite = 6, holgura = 2, ampliada = false, fijar = () => false } = {}) => {
+	// cortable: la lista es lo bastante larga para llevar el botón «Ver más» / «Ver menos».
+	const cortable = items.length > limite + holgura;
+	if (ampliada || !cortable) return { visibles: items.slice(), ocultas: [], cortable };
+	const visibles = items.slice(0, limite);
+	const ocultas = [];
+	items.slice(limite).forEach((x) => (fijar(x) ? visibles : ocultas).push(x));
+	return { visibles, ocultas, cortable };
+};
+
 // Confirmación con botones en texto propio («Sí, renovar» / «Cancelar»): frappe.confirm
 // usa la traducción de Frappe de «Yes», que en español sale «Si» sin tilde.
 crm_tableros.confirmar = (mensaje, etiqueta, accion) => {
