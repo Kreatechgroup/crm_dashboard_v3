@@ -568,3 +568,32 @@ button.crm-kpi-valor:hover,
 	.crm-cons-tarjetas { grid-template-columns: 1fr; }
 	.crm-form-2 { grid-template-columns: 1fr; }
 }
+
+/* Antes eran estilos en línea en crm_proyectos.js (B5). Mismos valores, para que el espaciado
+   se ajuste desde aquí. «.crm» delante: como el estilo en línea, ganan a la regla del
+   componente (p. ej. «.crm-panel h2 { margin: 0 }» o el display de .crm-tarjeta-cliente).
+   El sufijo es la medida en px; los que coinciden con la escala usan su token. */
+.crm .crm-bloque { display: block; }
+.crm .crm-flex-1 { flex: 1; }
+.crm .crm-nowrap { white-space: nowrap; }
+.crm .crm-peso-600 { font-weight: 600; }
+.crm .crm-texto-chico { font-size: 12.5px; }
+.crm .crm-mt-3 { margin-top: 3px; }
+.crm .crm-mt-4 { margin-top: var(--crm-esp-1); }
+.crm .crm-mt-6 { margin-top: 6px; }
+.crm .crm-mt-8 { margin-top: var(--crm-esp-2); }
+.crm .crm-mt-10 { margin-top: 10px; }
+.crm .crm-mt-12 { margin-top: var(--crm-esp-3); }
+.crm .crm-mt-14 { margin-top: 14px; }
+.crm .crm-mb-6 { margin-bottom: 6px; }
+.crm .crm-mr-6 { margin-right: 6px; }
+.crm .crm-pila-4 { display: grid; gap: var(--crm-esp-1); }
+.crm .crm-pila-8 { display: grid; gap: var(--crm-esp-2); }
+.crm .crm-sub-pegado { margin: 2px 0 0; }
+/* «Motivo de pérdida» de Mi día: más pegado a su cotización que un formulario normal. */
+.crm .crm-form-compacta { margin-top: var(--crm-esp-2); gap: 6px; }
+/* Texto de cierre de una oportunidad ganada o perdida. */
+.crm .crm-op-resultado { margin: 14px 0 0; font-size: 13px; line-height: 1.5; }
+.crm .crm-grafica-tit-chica { font-size: 12px; font-weight: 600; }
+/* «Solicitar entregable»: botón blanco con borde y texto del acento. */
+.crm .crm-boton-delineado { border-color: var(--crm-acento); color: var(--crm-acento-osc); font-weight: 600; }

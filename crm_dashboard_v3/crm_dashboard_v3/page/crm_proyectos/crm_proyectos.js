@@ -632,8 +632,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 										.map(
 											(t) => `
 							<button type="button" class="crm-tarjeta" data-accion="abrir" data-name="${this.e(t.name)}" aria-current="${this.estado.sel === t.name}">
-								<span class="crm-tarjeta-cliente" style="display:block">${this.e(t.cliente)}</span>
-								<span class="crm-tarjeta-monto" style="display:block;margin-top:3px">${t.monto > 0 ? this.e(this.dinero(t.monto)) : __("Sin monto")}</span>
+								<span class="crm-tarjeta-cliente crm-bloque">${this.e(t.cliente)}</span>
+								<span class="crm-tarjeta-monto crm-bloque crm-mt-3">${t.monto > 0 ? this.e(this.dinero(t.monto)) : __("Sin monto")}</span>
 								<span class="crm-tarjeta-extra ${t.revision ? "crm-tarjeta-revision" : ""}">${this.e(t.extra || t.etapa)}</span>
 							</button>`
 										)
@@ -836,7 +836,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				const perdiendo = this.estado.perdiendo === v.name;
 				const form = perdiendo
 					? `
-					<div class="crm-form" style="margin-top:8px;gap:6px">
+					<div class="crm-form crm-form-compacta">
 						<label>${__("Motivo de pérdida")} *
 							<select class="crm-select" data-modelo="motivo_vencida">
 								<option value="">${__("Elige un motivo")}</option>
@@ -979,7 +979,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		this.lista_actual = l;
 		return `
 			<button type="button" class="crm-enlace" data-accion="cerrar-panel">✕ ${__("Cerrar")}</button>
-			<h2 style="margin-top:6px">${this.e(l.titulo)}</h2>
+			<h2 class="crm-mt-6">${this.e(l.titulo)}</h2>
 			<p class="crm-panel-sub">${this.e(l.sub)}</p>
 			${filas}
 			<button type="button" class="crm-enlace" data-accion="erp-lista">${__("Abrir en ERPNext")}</button>`;
@@ -1017,7 +1017,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const op = this.op;
 		const prob = op.etapa.probabilidad == null ? __("sin prob.") : `${op.etapa.probabilidad}%`;
 		return `
-			<div style="margin-top:6px"><span class="crm-chip-etapa crm-chip-etapa-${this.e(op.etapa.clave)}">${this.e(op.etapa.titulo)} · ${this.e(prob)}</span></div>
+			<div class="crm-mt-6"><span class="crm-chip-etapa crm-chip-etapa-${this.e(op.etapa.clave)}">${this.e(op.etapa.titulo)} · ${this.e(prob)}</span></div>
 			<div class="crm-op-nombre">${this.e(op.cliente)}</div>
 			<div class="crm-op-meta">
 				<a class="crm-mono" href="/app/opportunity/${encodeURIComponent(op.name)}">${this.e(op.name)}</a>
@@ -1025,10 +1025,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				· ${op.dias === 0 ? __("movida hoy") : this.e(__("{0} sin moverse", [crm_tableros.plural(op.dias, __("día"), __("días"))]))}
 			</div>
 			<div class="crm-op-meta">${__("Asesor:")} <strong>${this.e(op.asesor)}</strong> · ${__("Modelo:")} <strong>${this.e(op.modelo)}</strong></div>
-			${op.incoherente ? `<div class="crm-alerta" style="margin-top:8px">${this.e(__("Etapa {0} con status {1}: corrígela en el formulario.", [op.etapa.titulo, op.status]))}</div>` : ""}
+			${op.incoherente ? `<div class="crm-alerta crm-mt-8">${this.e(__("Etapa {0} con status {1}: corrígela en el formulario.", [op.etapa.titulo, op.status]))}</div>` : ""}
 			${
 				op.revision_pos
-					? `<div class="crm-alerta" style="margin-top:8px">${this.e(
+					? `<div class="crm-alerta crm-mt-8">${this.e(
 							__("Para revisión: {0}. La oportunidad no se modificó.", [op.revision_pos])
 						)}</div>`
 					: ""
@@ -1044,7 +1044,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						? __("Ganada con la venta POS {0} (sin orden de venta). Status Converted, probabilidad 100%.", [op.factura_pos])
 						: __("Ganada con la orden de venta {0}. Status Converted, probabilidad 100%.", [op.ordenes_de_venta.join(", ") || "—"])
 					: __("Perdida por «{0}». Status Lost, probabilidad 0%.", [op.lost_reason || "—"]);
-			return `<p style="margin:14px 0 0;font-size:13px;line-height:1.5">${this.e(txt)}</p>`;
+			return `<p class="crm-op-resultado">${this.e(txt)}</p>`;
 		}
 		const pp = op.proximo_paso;
 		const sig = op.siguiente;
@@ -1059,12 +1059,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						? cotizaciones
 								.map(
 									(q) =>
-										`<div style="font-size:12.5px"><a class="crm-mono" href="/app/quotation/${encodeURIComponent(q.name)}">${this.e(q.name)}</a> · ${this.e(
+										`<div class="crm-texto-chico"><a class="crm-mono" href="/app/quotation/${encodeURIComponent(q.name)}">${this.e(q.name)}</a> · ${this.e(
 											this.dinero(q.monto)
 										)} · ${this.e(__("vigente hasta {0}", [this.fecha(q.valid_till)]))}</div>`
 								)
 								.join("")
-						: `<div style="font-size:12.5px">${__("Aún no hay una cotización enviada (submit) ligada a esta oportunidad.")}</div>
+						: `<div class="crm-texto-chico">${__("Aún no hay una cotización enviada (submit) ligada a esta oportunidad.")}</div>
 							<button type="button" class="crm-boton-blanco" data-accion="crear-cotizacion">${__("Crear cotización desde la oportunidad")}</button>`
 				}
 				<div class="crm-pista">${__("El monto de la cotización reemplaza el monto estimado de la oportunidad.")}</div>
@@ -1211,7 +1211,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		}
 		return `
 			<div>
-				<div class="crm-pista" style="margin-bottom:6px">${__("Ventas POS (sin orden de venta) del asesor o del cliente, últimos 6 meses. Primero las del mismo cliente.")}</div>
+				<div class="crm-pista crm-mb-6">${__("Ventas POS (sin orden de venta) del asesor o del cliente, últimos 6 meses. Primero las del mismo cliente.")}</div>
 				${facturas
 					.map((f) => {
 						const detalle = [this.fecha(f.fecha), this.dinero(f.monto) + " " + __("sin IVA"), f.producto + (f.lineas > 1 ? " " + __("y {0} más", [f.lineas - 1]) : "")];
@@ -1224,7 +1224,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						return `
 						<button type="button" class="crm-orden" data-accion="elegir-pos" data-valor="${this.e(f.name)}" aria-pressed="${g.factura === f.name}"
 							${f.ligada_a ? "disabled" : ""}>
-							<span><strong style="display:block">${this.e(f.cliente)} · <span class="crm-mono">${this.e(f.name)}</span></strong>${this.e(detalle.join(" · "))}</span>
+							<span><strong class="crm-bloque">${this.e(f.cliente)} · <span class="crm-mono">${this.e(f.name)}</span></strong>${this.e(detalle.join(" · "))}</span>
 							<span class="crm-orden-nota">${this.e(nota)}</span>
 						</button>`;
 					})
@@ -1245,19 +1245,19 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		} else if (g.modo === "nueva") {
 			cuerpo = op.cotizacion_para_orden
 				? `
-				<div style="display:grid;gap:8px;font-size:12.5px">
+				<div class="crm-pila-8 crm-texto-chico">
 					<div>${__("Cliente:")} <strong>${this.e(op.cliente)}</strong></div>
 					<div>${__("Desde la cotización vigente")} <span class="crm-mono">${this.e(op.cotizacion_para_orden)}</span> · ${__("monto")} <strong>${this.e(
 						this.dinero(op.monto_cotizacion_para_orden)
 					)}</strong></div>
-					<label style="display:grid;gap:4px">${__("Fecha de entrega")} *
+					<label class="crm-pila-4">${__("Fecha de entrega")} *
 						<input type="date" class="crm-input" data-modelo="ganar.fecha" min="${this.e(this.datos.hoy)}" value="${this.e(g.fecha || "")}"></label>
 				</div>`
 				: `<div class="crm-aviso-gris">${__("No hay una cotización enviada y vigente para crear la orden de venta. Renueva la cotización o vincula una orden existente.")}</div>`;
 		} else {
 			cuerpo = `
 				<div>
-					<div class="crm-pista" style="margin-bottom:6px">${__("Órdenes de venta de este cliente de los últimos 6 meses")}</div>
+					<div class="crm-pista crm-mb-6">${__("Órdenes de venta de este cliente de los últimos 6 meses")}</div>
 					${
 						ordenes.length
 							? ordenes
@@ -1265,7 +1265,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 										(o) => `
 						<button type="button" class="crm-orden" data-accion="elegir-orden" data-valor="${this.e(o.name)}" aria-pressed="${g.orden === o.name}"
 							${o.ligada_a ? "disabled" : ""}>
-							<span><strong class="crm-mono" style="display:block">${this.e(o.name)}</strong>${this.e(this.fecha(o.fecha))} · ${this.e(this.dinero(o.monto))} · ${this.e(o.status)}</span>
+							<span><strong class="crm-mono crm-bloque">${this.e(o.name)}</strong>${this.e(this.fecha(o.fecha))} · ${this.e(this.dinero(o.monto))} · ${this.e(o.status)}</span>
 							<span class="crm-orden-nota">${this.e(o.ligada_a ? __("Ya ligada a {0}", [o.ligada_a]) : __("Sin oportunidad ligada"))}</span>
 						</button>`
 									)
@@ -1318,7 +1318,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				${cuerpo}
 				${g.intento && falta.length ? `<div role="alert" class="crm-alerta">${this.e(__("Falta: {0}", [falta.join(", ")]))}</div>` : ""}
 				<div class="crm-acciones-fila">
-					<button type="button" class="crm-boton-verde crm-boton-mediano" style="flex:1" data-accion="confirmar-ganar"
+					<button type="button" class="crm-boton-verde crm-boton-mediano crm-flex-1" data-accion="confirmar-ganar"
 						${g.modo === "nueva" && !op.cotizacion_para_orden ? "disabled" : ""}>${this.e(boton)}</button>
 					<button type="button" class="crm-boton-blanco crm-boton-mediano" data-accion="cancelar-ganar">${__("Cancelar")}</button>
 				</div>
@@ -1372,7 +1372,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const confirmar = !sel
 			? ""
 			: `
-				<div style="display:grid;gap:8px;margin-top:10px">
+				<div class="crm-pila-8 crm-mt-10">
 					${campos}
 					${this.estado.intento === "sec" && falta.length ? `<div role="alert" class="crm-alerta">${this.e(__("Falta: {0}", [falta.join(", ")]))}</div>` : ""}
 					<button type="button" class="crm-boton-confirmar ${sel.k === "perder" ? "crm-boton-confirmar-perder" : ""}" data-accion="confirmar-sec">${
@@ -1412,7 +1412,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					value="${this.e(af.prox || this.prox_por_defecto())}"></label>
 				${this.estado.intento === "act" && falta.length ? `<div role="alert" class="crm-alerta">${this.e(__("Falta: {0}", [falta.join(", ")]))}</div>` : ""}
 				${this.estado.act_ok ? `<div role="status" class="crm-ok">${__("Actividad registrada. Los días sin moverse volvieron a 0.")}</div>` : ""}
-				<button type="button" class="crm-boton-morado crm-boton-grande" style="font-weight:600" data-accion="guardar-actividad">${__("Guardar Opportunity Activity")}</button>
+				<button type="button" class="crm-boton-morado crm-boton-grande crm-peso-600" data-accion="guardar-actividad">${__("Guardar Opportunity Activity")}</button>
 				<div class="crm-pista">${__("El próximo contacto pasa a ser el próximo paso de la oportunidad.")}</div>
 			</div>`;
 		const hist = op.historial.length
@@ -1450,7 +1450,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		if (!df.desc.trim()) falta.push(__("descripción"));
 		const tipos = op.opciones.tipos_entregable;
 		const form = !tipos.length
-			? `<p class="crm-sub" style="margin-top:14px">${__("No hay tipos de entregable configurados (Tipo Entregable).")}</p>`
+			? `<p class="crm-sub crm-mt-14">${__("No hay tipos de entregable configurados (Tipo Entregable).")}</p>`
 			: `
 			<div class="crm-form">
 				<label>${__("Tipo de entregable")} *<select class="crm-select" data-modelo="df.tipo"><option value="">${__("Elige el tipo")}</option>${tipos
@@ -1459,7 +1459,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				<label>${__("Fecha solicitada")} *<input type="date" class="crm-input" data-modelo="df.fecha" min="${this.e(this.datos.hoy)}" value="${this.e(df.fecha)}"></label>
 				<label>${__("Descripción")} *<textarea class="crm-textarea" rows="3" data-modelo="df.desc" placeholder="${__("Qué necesita el cliente")}">${this.e(df.desc)}</textarea></label>
 				${this.estado.intento === "doc" && falta.length ? `<div role="alert" class="crm-alerta">${this.e(__("Falta: {0}", [falta.join(", ")]))}</div>` : ""}
-				<button type="button" class="crm-boton-blanco crm-boton-grande" style="border-color:var(--crm-acento);color:var(--crm-acento-osc);font-weight:600"
+				<button type="button" class="crm-boton-blanco crm-boton-grande crm-boton-delineado"
 					data-accion="solicitar-entregable">${__("Solicitar entregable")}</button>
 			</div>`;
 		const lista = op.entregables.length
@@ -1614,7 +1614,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			<div class="crm-cons-cab">
 				<div>
 					<h2>${__("Consolidado por asesor")}</h2>
-					<p class="crm-sub" style="margin:2px 0 0">${this.e(
+					<p class="crm-sub crm-sub-pegado">${this.e(
 						__("{0} · separado por el Sales Person de cada modelo de cada asesor", [this.subtitulo_mes()])
 					)}</p>
 				</div>
@@ -1683,7 +1683,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const cabeza = (primera) =>
 			`<thead><tr><th>${this.e(primera)}</th>${claves.map((k) => `<th class="${this.clase_modelo(k)}">${this.e(k)}</th>`).join("")}</tr></thead>`;
 		const tabla = `
-			<div class="crm-scroll" style="margin-top:10px">
+			<div class="crm-scroll crm-mt-10">
 				<table class="crm-tabla crm-tabla-cons">
 					${cabeza(__("Indicador"))}
 					<tbody>${filas.map(([l, f]) => `<tr><td>${this.e(l)}</td>${claves.map((k) => f(k, t.columnas[k])).join("")}</tr>`).join("")}</tbody>
@@ -1781,7 +1781,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			)}</button>
 				${
 					abierta
-						? `<div class="crm-scroll" style="margin-top:8px"><table class="crm-tabla crm-tabla-facturas">
+						? `<div class="crm-scroll crm-mt-8"><table class="crm-tabla crm-tabla-facturas">
 							<thead><tr>
 								<th class="crm-izq">${__("Factura")}</th>${con_asesor ? `<th class="crm-izq">${__("Asesor")}</th>` : ""}<th class="crm-izq">${__("Cliente")}</th><th>net_total</th><th>grand_total</th><th>outstanding</th>
 								<th>${__("Pagado")}</th><th>${__("Distribución")}</th><th>${__("Tasa")}</th><th>${__("Comisión")}</th><th>${__("Por cobrar")}</th><th>${__("Comisión futura")}</th>
@@ -1793,7 +1793,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		return `
 			<div class="crm-cons-seccion">
 				<div class="crm-cons-seccion-tit">${this.e(__("Operación de comisión · {0}", [mes]))}</div>
-				<p class="crm-nota" style="margin-top:4px">${__("Por cada factura:")} <strong>${__("cantidad pagada × commission_rate del Sales Person ÷ 100")}</strong>. ${__(
+				<p class="crm-nota crm-mt-4">${__("Por cada factura:")} <strong>${__("cantidad pagada × commission_rate del Sales Person ÷ 100")}</strong>. ${__(
 			"Cantidad pagada = net_total × (grand_total − outstanding_amount) ÷ grand_total, para quitar el IVA del saldo pendiente. La factura se atribuye al asesor por la tabla"
 		)} <strong>${__("Comisiones Asesor")}</strong> ${__("de su orden de venta, no por el Sales Team de la factura.")}</p>
 				${resumen}
@@ -1824,8 +1824,8 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			.join("");
 		const rango = t.barras.length ? `${t.barras[0].etiqueta.toLowerCase()} a ${t.barras[t.barras.length - 1].etiqueta.toLowerCase()}` : "";
 		return `
-			<div style="margin-top:12px">
-				<div style="font-size:12px;font-weight:600">${this.e(__("Facturado por mes · {0}", [rango]))}</div>
+			<div class="crm-mt-12">
+				<div class="crm-grafica-tit-chica">${this.e(__("Facturado por mes · {0}", [rango]))}</div>
 				<div class="crm-grafica-leyenda">${modelos
 					.map((m) => `<span><span class="crm-punto ${this.es_modelo_principal(m) ? "crm-c-proyectos" : "crm-c-retail"}" aria-hidden="true"></span>${this.e(m)}</span>`)
 					.join("")}</div>
@@ -1887,9 +1887,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			return `
 				<tr>
 					<td>${chip(x.name, tipo_doc)}</td>
-					<td style="white-space:nowrap">${this.e(this.fecha(x.fecha))}</td>
+					<td class="crm-nowrap">${this.e(this.fecha(x.fecha))}</td>
 					<td>${this.e(x.cliente)}</td>
-					<td class="crm-der crm-num" style="font-weight:600;white-space:nowrap">${this.e(this.dinero(x.monto))}</td>
+					<td class="crm-der crm-num crm-nowrap crm-peso-600">${this.e(this.dinero(x.monto))}</td>
 					<td><div class="crm-enlaces">${enlaces || "—"}</div></td>
 					<td>${this.tag({ clave: tono, texto: estado }, estado, true)}${nota ? `<span class="crm-doc-nota ${tono === "amarillo" ? "crm-doc-nota-mal" : ""}">${this.e(nota)}</span>` : ""}</td>
 				</tr>`;
@@ -1901,7 +1901,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				const filas = lista.filter((x) => x.modelo === m);
 				const clase = this.es_modelo_principal(m) ? "crm-grupo-proyectos" : "crm-grupo-retail";
 				return `
-					<tr class="${clase}"><td colspan="6"><span class="crm-punto ${this.es_modelo_principal(m) ? "crm-c-proyectos" : "crm-c-retail"}" style="margin-right:6px"></span><strong>${this.e(
+					<tr class="${clase}"><td colspan="6"><span class="crm-punto ${this.es_modelo_principal(m) ? "crm-c-proyectos" : "crm-c-retail"} crm-mr-6"></span><strong>${this.e(
 					m
 				)}</strong> <span class="crm-sub">· ${this.e(__("{0} · {1}", [crm_tableros.plural(filas.length, __("documento"), __("documentos")), this.dinero(suma(filas))]))}</span></td></tr>
 					${filas.length ? filas.map(fila).join("") : `<tr><td colspan="6" class="crm-sub">${this.e(__("Sin documentos de {0}.", [m]))}</td></tr>`}`;
@@ -1942,9 +1942,9 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						)
 						.join("")}
 				</div>
-				<div role="tablist" aria-label="${__("Tipo de documento")}" class="crm-docs-filtros" style="margin-top:10px">${tabs}</div>
+				<div role="tablist" aria-label="${__("Tipo de documento")}" class="crm-docs-filtros crm-mt-10">${tabs}</div>
 				<p class="crm-docs-hint">${this.e(ayudas[det.tipo] + " " + total_txt)}</p>
-				<div class="crm-scroll" style="margin-top:8px">
+				<div class="crm-scroll crm-mt-8">
 					<table class="crm-tabla crm-tabla-docs">
 						<thead><tr><th>${__("Documento")}</th><th>${__("Fecha")}</th><th>${__("Cliente")}</th><th class="crm-der">${__("Monto")}</th>
 							<th>${__("Documentos vinculados")}</th><th>${__("Estado")}</th></tr></thead>
