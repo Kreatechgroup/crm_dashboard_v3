@@ -36,7 +36,10 @@
 @media (prefers-reduced-motion: reduce) { .crm-panel { animation: none; } }
 
 /* Tablas */
-.crm-scroll { overflow-x: auto; }
+/* position: relative hace del contenedor el bloque de los textos para lector de pantalla
+   (.crm-sr, position: absolute) de tarjetas y tablas: sin esto escapan del recorte y la
+   página entera se desplaza a lo ancho en móvil (825 px de documento en 375 px de pantalla). */
+.crm-scroll { overflow-x: auto; position: relative; }
 .crm-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
 .crm-tabla th { text-align: left; color: var(--crm-muted); font-size: 11.5px; font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--crm-borde); }
 .crm-tabla td { padding: 8px; border-bottom: 1px solid var(--crm-borde-suave); vertical-align: top; }
