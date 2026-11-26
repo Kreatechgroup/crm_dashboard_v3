@@ -127,7 +127,8 @@
 .crm-grupo-cab strong { font-size: 13.5px; }
 .crm-grupo-ayuda { font-size: 12px; color: var(--crm-muted); }
 .crm-grupo-metas { margin: 4px 0 0; font-size: 12px; color: var(--crm-texto-2); }
-.crm-grupo-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin: 8px 0 4px; }
+/* min(260px, 100%) y minmax(0, 1fr): la rejilla nunca es más ancha que la pantalla (A1). */
+.crm-grupo-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 8px; margin: 8px 0 4px; }
 .crm-grupo-items .crm-item { margin-bottom: 0; }
 .crm-panel .crm-item { margin-bottom: 6px; }
 .crm-item-meta { box-shadow: inset 3px 0 0 var(--crm-verde); }
@@ -138,7 +139,7 @@
 .crm-badge-gris { background: var(--crm-gris-bg); color: var(--crm-texto-2); }
 .crm-badge-verde { background: var(--crm-verde-bg); color: var(--crm-verde-tx); }
 .crm-al-dia { font-size: 12.5px; color: var(--crm-verde-tx); }
-.crm-item { border-radius: 8px; background: var(--crm-sutil); padding: 8px 10px; margin-bottom: 6px; }
+.crm-item { border-radius: 8px; background: var(--crm-sutil); padding: 8px 10px; margin-bottom: 6px; min-width: 0; }
 .crm-item-boton { display: flex; width: 100%; justify-content: space-between; gap: 8px; border: 0; background: none; padding: 0; text-align: left; color: var(--crm-texto); min-height: 28px; align-items: center; }
 .crm-item-boton > span:first-child { min-width: 0; }
 .crm-item-boton strong { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -361,7 +362,7 @@ button.crm-kpi-valor:hover,
 }
 
 @media (max-width: 767px) {
-	.crm-grupo-items { grid-template-columns: 1fr; }
+	.crm-grupo-items { grid-template-columns: minmax(0, 1fr); }
 	.crm-cons-tarjetas { grid-template-columns: 1fr; }
 	.crm-form-2 { grid-template-columns: 1fr; }
 }
