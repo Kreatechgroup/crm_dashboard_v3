@@ -1,6 +1,13 @@
 /* CRM Proyectos (asesores de Plus) · lo propio de este tablero.
    La base (variables, encabezado, tarjetas, pastillas) está en public/css/crm_tableros/common.css. */
 
+/* Todo el ancho, solo en esta página: el CSS de la página queda cargado al navegar por
+   ERPNext, por eso cada regla va bajo la ruta y no cambia el ancho de otras pantallas.
+   Tope de 1920 px para que las líneas no se alarguen de más en monitores muy anchos (P4). */
+[data-page-route="crm-proyectos"] .page-head .container,
+[data-page-route="crm-proyectos"] .page-body.container { max-width: none; }
+[data-page-route="crm-proyectos"] .crm { max-width: 1920px; margin-inline: auto; }
+
 /* Indicadores */
 .crm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
 .crm-kpi-titulo { font-size: 12px; font-weight: 600; color: var(--crm-muted); }
