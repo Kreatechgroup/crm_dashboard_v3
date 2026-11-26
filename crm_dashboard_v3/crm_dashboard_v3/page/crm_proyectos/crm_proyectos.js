@@ -5,6 +5,11 @@
 const API_PROYECTOS = "crm_dashboard_v3.crm_tableros.proyectos.api.";
 // Tarjetas visibles por columna del embudo antes de «Ver más».
 const TARJETAS_POR_COLUMNA = 6;
+// Pendientes visibles por grupo de Mi día antes de «Ver todas (N)»: 2 en escritorio (así el
+// embudo entra en la primera pantalla) y 3 en móvil y tableta. El corte es el del CSS de Mi día.
+const MI_DIA_ESCRITORIO = "(min-width: 1024px)";
+const PENDIENTES_ESCRITORIO = 2;
+const PENDIENTES_OTROS = 3;
 // localStorage: si el usuario dejó abierta la leyenda de colores del embudo.
 const CLAVE_AYUDA = "crm-proyectos:ayuda-abierta";
 
@@ -752,7 +757,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			: d.asesor
 			? __("Lo que este asesor tiene pendiente, en orden de prioridad")
 			: __("Pendientes de todos los asesores, en orden de prioridad");
-		const POR_FILA = 3;
+		const POR_FILA = this.es_escritorio() ? PENDIENTES_ESCRITORIO : PENDIENTES_OTROS;
 		const grupos = d.mi_dia
 			.map((g) => {
 				const ayuda = (g.ayuda_args || []).reduce(
@@ -776,6 +781,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			})
 			.join("");
 		return `<h2>${this.e(this.titulo_mi_dia())}</h2><p class="crm-panel-sub">${this.e(sub)}</p>${grupos}`;
+	}
+
+	es_escritorio() {
+		return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(MI_DIA_ESCRITORIO).matches;
 	}
 
 	// En «Escalar al jefe»: cuánto lleva y cuánto le falta de cada meta, y cuántas la completan.
@@ -1975,6 +1984,15 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		$b.on("keydown", (ev) => {
 			if (ev.key === "Escape" && !this.$body.find(".crm-panel").prop("hidden")) this.cerrar_panel();
 		});
+		// Al cruzar el corte de escritorio, Mi día vuelve a pintarse con 2 o 3 pendientes por grupo.
+		if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+			const mq = window.matchMedia(MI_DIA_ESCRITORIO);
+			const al_cambiar = () => {
+				if (this.datos && this.datos.mi_dia) this.reemplazar_zona(this.$body.find(".crm-mi-dia"), this.html_mi_dia());
+			};
+			if (typeof mq.addEventListener === "function") mq.addEventListener("change", al_cambiar);
+			else if (typeof mq.addListener === "function") mq.addListener(al_cambiar);
+		}
 	}
 
 	// Preferencias de comodidad en localStorage: si el navegador lo bloquea, se usa el valor por defecto.
