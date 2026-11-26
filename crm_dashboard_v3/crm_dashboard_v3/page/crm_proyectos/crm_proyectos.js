@@ -242,7 +242,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			})
 			.join(" · ");
 		return `
-			<div class="crm-card">
+			<div class="crm-card crm-kpi-meta crm-kpi-ritmo-${this.e(k.meta.ritmo.clave)}">
 				<div class="crm-kpi-titulo">${this.e(etiqueta)}</div>
 				<div class="crm-kpi-fila">
 					<button type="button" class="crm-kpi-valor" data-accion="lista" data-valor="won">${this.e(this.dinero(k.meta.facturado))}</button>
@@ -265,7 +265,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				)}</div>
 				<div class="crm-kpi-pie">${this.e(desglose)}</div>
 			</div>
-			<div class="crm-card">
+			<div class="crm-card crm-kpi-pronostico">
 				<div class="crm-kpi-titulo">${this.e(__("Pronóstico de {0} · {1}", [this.mes_en_texto(), modelos]))}</div>
 				${
 					pr.mes_cerrado
@@ -277,12 +277,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					data-valor="fc">${this.e(this.dinero(pr.total))}</button> ${__("ponderado")}</div>
 				${aviso}
 			</div>
-			<div class="crm-card">
+			<div class="crm-card crm-kpi-vigentes">
 				<div class="crm-kpi-titulo">${__("Propuestas vigentes")}</div>
 				<button type="button" class="crm-kpi-valor" data-accion="lista" data-valor="vig">${this.e(this.dinero(k.vigentes.monto))}</button>
 				<div class="crm-kpi-pie">${this.e(__("{0} en propuesta enviada o negociación", [k.vigentes.cantidad]))}</div>
 			</div>
-			<div class="crm-card">
+			<div class="crm-card crm-kpi-vencidas">
 				<div class="crm-kpi-titulo">${__("Propuestas vencidas")}</div>
 				<button type="button" class="crm-kpi-valor crm-kpi-rojo" data-accion="lista" data-valor="vencidas">${this.e(
 					this.dinero(k.vencidas.monto)
@@ -517,8 +517,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		const total = tarjetas.reduce((s, t) => s + t.monto, 0);
 		const rojas = this.tarjetas_visibles(col, false).filter((t) => this.pide_accion(t)).length;
 		const corte = this.cortar_columna(col, tarjetas);
+		// Posición de la etapa activa (1 a 4): franja superior en la rampa de morados (P3).
+		const etapa = Math.min(Math.max(this.datos.columnas.indexOf(col), 0), 3) + 1;
 		return `
-			<div class="crm-columna">
+			<div class="crm-columna crm-etapa-${etapa}">
 				<div class="crm-columna-cab">
 					<div class="crm-columna-tit"><strong>${this.e(col.titulo)}</strong>
 						<span class="crm-columna-prob">${col.probabilidad == null ? __("sin prob.") : this.e(col.probabilidad + "%")}</span></div>
@@ -768,10 +770,12 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				const mas = g.cantidad > POR_FILA
 					? `<button type="button" class="crm-enlace" data-accion="lista" data-valor="${this.e(g.clave)}">${this.e(__("Ver todas ({0})", [g.cantidad]))}</button>`
 					: "";
+				// Mismo tono que la pastilla: el de g.tono, o verde si el grupo está al día (P3).
+				const tono = g.cantidad ? g.tono : "verde";
 				return `
-					<div class="crm-grupo">
+					<div class="crm-grupo crm-grupo-${this.e(tono)}">
 						<div class="crm-grupo-cab">
-							<span class="crm-badge crm-badge-${g.cantidad ? this.e(g.tono) : "verde"}">${this.e(g.cantidad)}</span>
+							<span class="crm-badge crm-badge-${this.e(tono)}">${this.e(g.cantidad)}</span>
 							<strong>${this.e(g.titulo)}</strong>
 							<span class="crm-grupo-ayuda">· ${this.e(ayuda)}</span>
 						</div>

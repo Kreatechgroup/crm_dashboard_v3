@@ -159,6 +159,35 @@
 .crm-columna-perdida .crm-tarjeta-extra { color: var(--crm-rojo); }
 .crm-columna-ganada .crm-tarjeta-extra.crm-tarjeta-revision { color: var(--crm-rojo); }
 
+/* Color con significado (P3). Siempre acompaña a un texto que ya dice lo mismo; verde, ámbar y
+   rojo quedan solo para el semáforo (y el ritmo de la meta, que es un semáforo).
+   · Etapas: franja superior en una rampa de morados que se oscurece con la probabilidad.
+     Nada de fondos fuertes ni un color por etapa: el nombre y el % siguen siendo el dato. */
+.crm-columna[class*="crm-etapa-"] { border-top: 4px solid transparent; }
+.crm-columna.crm-etapa-1 { border-top-color: var(--crm-etapa-1); }
+.crm-columna.crm-etapa-2 { border-top-color: var(--crm-etapa-2); }
+.crm-columna.crm-etapa-3 { border-top-color: var(--crm-etapa-3); }
+.crm-columna.crm-etapa-4 { border-top-color: var(--crm-etapa-4); }
+/* · Indicadores: franja izquierda del color de su significado. «Facturado vs meta» toma el
+     color del ritmo que calcula el servidor (verde, ámbar o rojo, como su pastilla). */
+.crm-kpis > .crm-card { box-shadow: inset 4px 0 0 var(--crm-kpi-color, transparent); }
+.crm-kpi-pronostico { --crm-kpi-color: var(--crm-acento); }
+.crm-kpi-vigentes { --crm-kpi-color: var(--crm-azul-tx); }
+.crm-kpi-vencidas { --crm-kpi-color: var(--crm-rojo); }
+.crm-kpi-ritmo-verde { --crm-kpi-color: var(--crm-ganada); }
+.crm-kpi-ritmo-amarillo { --crm-kpi-color: var(--crm-ambar-2); }
+.crm-kpi-ritmo-rojo { --crm-kpi-color: var(--crm-rojo); }
+/* · Mi día: la cabecera de cada grupo con el fondo suave de su tono (el de su pastilla). */
+.crm-grupo[class*="crm-grupo-"] > .crm-grupo-cab { padding: 6px var(--crm-esp-2); border-radius: var(--crm-radio-md); }
+.crm-grupo-rojo > .crm-grupo-cab { background: var(--crm-rojo-suave); }
+.crm-grupo-amarillo > .crm-grupo-cab { background: var(--crm-ambar-suave); }
+.crm-grupo-gris > .crm-grupo-cab { background: var(--crm-sutil); }
+.crm-grupo-verde > .crm-grupo-cab { background: var(--crm-verde-suave); }
+/* · Tarjetas que piden acción: borde izquierdo rojo de 3 px, además del texto rojo y
+     «Registrar contacto». Se mantiene rojo al pasar el ratón. */
+.crm-tarjeta-caja,
+.crm-tarjeta-caja:hover { border-left: 3px solid var(--crm-rojo); }
+
 /* Mi día (sección de todo el ancho) y panel deslizante */
 .crm-panel h2,
 .crm-mi-dia h2 { margin: 0; font-size: 16px; font-weight: 700; }
