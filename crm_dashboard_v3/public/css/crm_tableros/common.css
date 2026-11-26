@@ -19,6 +19,8 @@
 	--crm-acento-osc: #4c1d95;
 	--crm-acento-bg: #f5f3ff;
 	--crm-acento-chip: #ede9fe;
+	/* Texto sobre fondo de acento (botón morado, píldora activa). */
+	--crm-sobre-acento: #ffffff;
 	--crm-verde: #047857;
 	--crm-verde-bg: #d1fae5;
 	--crm-verde-tx: #065f46;
@@ -63,6 +65,8 @@
 	--crm-acento-osc: #c4b5fd;
 	--crm-acento-bg: #2e1065;
 	--crm-acento-chip: #4c1d95;
+	/* Sobre el acento claro del tema oscuro (#a78bfa) el blanco da 2.7:1; este da 6.6:1. */
+	--crm-sobre-acento: #1e1033;
 	--crm-verde-bg: #064e3b;
 	--crm-verde-tx: #a7f3d0;
 	--crm-verde-suave: #052e2b;
@@ -143,7 +147,7 @@
 	background: var(--crm-card);
 	color: var(--crm-texto-2);
 }
-.crm-pildora[aria-pressed="true"] { border-color: var(--crm-acento); background: var(--crm-acento); color: #fff; }
+.crm-pildora[aria-pressed="true"] { border-color: var(--crm-acento); background: var(--crm-acento); color: var(--crm-sobre-acento); }
 .crm-pildora-oscura[aria-pressed="true"] { border-color: var(--crm-texto); background: var(--crm-texto); color: var(--crm-card); }
 .crm-pildora-sm { min-height: 34px; padding: 0 12px; font-size: 12.5px; }
 

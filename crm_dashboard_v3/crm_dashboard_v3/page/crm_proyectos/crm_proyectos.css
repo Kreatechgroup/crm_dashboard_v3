@@ -157,7 +157,7 @@
 	font-size: 12px;
 	border: 0;
 }
-.crm-boton-morado { background: var(--crm-acento); color: #fff; }
+.crm-boton-morado { background: var(--crm-acento); color: var(--crm-sobre-acento); }
 .crm-boton-blanco { border: 1px solid var(--crm-input-borde); background: var(--crm-card); color: var(--crm-texto-2); }
 .crm-boton-rojo { background: var(--crm-rojo); color: #fff; }
 .crm-boton-verde { background: var(--crm-verde); color: #fff; }
