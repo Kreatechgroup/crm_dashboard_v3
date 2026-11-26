@@ -5,6 +5,8 @@
 const API_PROYECTOS = "crm_dashboard_v3.crm_tableros.proyectos.api.";
 // Tarjetas visibles por columna del embudo antes de «Ver más».
 const TARJETAS_POR_COLUMNA = 6;
+// localStorage: si el usuario dejó abierta la leyenda de colores del embudo.
+const CLAVE_AYUDA = "crm-proyectos:ayuda-abierta";
 
 frappe.pages["crm-proyectos"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
@@ -34,6 +36,10 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			orden: "monto",
 			// Columnas ampliadas con «Ver más», por clave; se mantienen al cambiar filtros.
 			expandidas: {},
+			// «Para entrar: …» por columna, a la vista solo con «Ver requisitos por etapa».
+			ver_requisitos: false,
+			// Leyenda de colores plegada; se recuerda si el usuario la dejó abierta.
+			ayuda_abierta: this.leer_preferencia(CLAVE_AYUDA) === "1",
 			ver_cerradas: false,
 			lista: null,
 			sel: null,
@@ -475,20 +481,26 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					<button type="button" class="crm-boton-sec" data-accion="solo-accion" aria-pressed="${this.estado.solo_accion}">${__(
 						"Solo las que piden acción"
 					)}</button>
+					<button type="button" class="crm-boton-sec" data-accion="ver-requisitos" aria-pressed="${this.estado.ver_requisitos}">${__(
+						"Ver requisitos por etapa"
+					)}</button>
 					<button type="button" class="crm-boton-sec" data-accion="toggle-cerradas" aria-expanded="${this.estado.ver_cerradas}">${this.e(
 						(this.estado.ver_cerradas ? __("Ocultar") : __("Ver")) + " " + __("en pausa y cerradas ({0})", [total_cerradas])
 					)}</button>
 				</div>
 			</div>
-			<p class="crm-nota crm-leyenda">
-				<strong>${__("Días sin moverse:")}</strong>
-				${ej("verde", 3, __("verde, hasta {0}", [d.dias_verde_max]))}
-				${ej("amarillo", d.dias_verde_max + 3, __("ámbar, de {0} a {1}", [d.dias_verde_max + 1, d.dias_amarillo_max]))}
-				${ej("rojo", d.dias_amarillo_max + 6, __("rojo, más de {0}", [d.dias_amarillo_max]))}
-				<span>${__(
-					"· Próximo paso en rojo si no hay o si ya pasó · «Piden acción» = días o próximo paso en rojo · «Para entrar» = lo que exige cada etapa"
-				)}</span>
-			</p>
+			<details class="crm-ayuda" ${this.estado.ayuda_abierta ? "open" : ""}>
+				<summary>${__("¿Qué significan los colores y «Para entrar»?")}</summary>
+				<p class="crm-nota crm-leyenda">
+					<strong>${__("Días sin moverse:")}</strong>
+					${ej("verde", 3, __("verde, hasta {0}", [d.dias_verde_max]))}
+					${ej("amarillo", d.dias_verde_max + 3, __("ámbar, de {0} a {1}", [d.dias_verde_max + 1, d.dias_amarillo_max]))}
+					${ej("rojo", d.dias_amarillo_max + 6, __("rojo, más de {0}", [d.dias_amarillo_max]))}
+					<span>${__(
+						"· Próximo paso en rojo si no hay o si ya pasó · «Piden acción» = días o próximo paso en rojo · «Para entrar» = lo que exige cada etapa (se ven con «Ver requisitos por etapa»)"
+					)}</span>
+				</p>
+			</details>
 			<div class="crm-scroll">
 				<div class="crm-columnas">${d.columnas.map((c) => this.html_columna(c)).join("")}</div>
 			</div>`;
@@ -509,7 +521,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 						crm_tableros.plural(tarjetas.length, __("oportunidad"), __("oportunidades"))
 					)} · ${this.e(this.dinero(total))}</button>
 					${rojas ? `<span class="crm-columna-rojas">${this.tag({ clave: "rojo" }, __("{0} en rojo", [rojas]), true)}</span>` : ""}
-					<div class="crm-columna-req">${this.e(__("Para entrar: {0}", [col.requisitos]))}</div>
+					${this.estado.ver_requisitos ? `<div class="crm-columna-req">${this.e(__("Para entrar: {0}", [col.requisitos]))}</div>` : ""}
 				</div>
 				${
 					tarjetas.length
@@ -1949,9 +1961,37 @@ class TableroProyectos extends crm_tableros.TableroBase {
 			else this.estado[ruta[0]][ruta[1]] = $c.val();
 			if (ruta[0] === "af") this.estado.act_ok = false;
 		});
+		// «toggle» de <details> no burbujea: se escucha en captura. Al repintar el embudo la
+		// leyenda conserva cómo la dejó el usuario.
+		$b[0].addEventListener(
+			"toggle",
+			(ev) => {
+				if (!ev.target.classList || !ev.target.classList.contains("crm-ayuda")) return;
+				this.estado.ayuda_abierta = ev.target.open;
+				this.guardar_preferencia(CLAVE_AYUDA, ev.target.open ? "1" : "0");
+			},
+			true
+		);
 		$b.on("keydown", (ev) => {
 			if (ev.key === "Escape" && !this.$body.find(".crm-panel").prop("hidden")) this.cerrar_panel();
 		});
+	}
+
+	// Preferencias de comodidad en localStorage: si el navegador lo bloquea, se usa el valor por defecto.
+	leer_preferencia(clave) {
+		try {
+			return window.localStorage.getItem(clave);
+		} catch (e) {
+			return null;
+		}
+	}
+
+	guardar_preferencia(clave, valor) {
+		try {
+			window.localStorage.setItem(clave, valor);
+		} catch (e) {
+			// Sin almacenamiento la leyenda simplemente vuelve a salir plegada.
+		}
 	}
 
 	cambio(clave, valor) {
@@ -2009,6 +2049,14 @@ class TableroProyectos extends crm_tableros.TableroBase {
 				this.estado.solo_accion = !this.estado.solo_accion;
 				this.repintar_embudo();
 				this.marcar_tarjeta();
+			},
+			"ver-requisitos": () => {
+				this.estado.ver_requisitos = !this.estado.ver_requisitos;
+				this.repintar_embudo();
+				this.marcar_tarjeta();
+				// El embudo se pinta de nuevo: el foco vuelve al botón (ya con su aria-pressed nuevo).
+				const boton = this.$body.find('[data-accion="ver-requisitos"]')[0];
+				if (boton) boton.focus();
 			},
 			"registrar-contacto": () => this.registrar_contacto(name),
 			"ampliar-columna": () => this.ampliar_columna(valor),

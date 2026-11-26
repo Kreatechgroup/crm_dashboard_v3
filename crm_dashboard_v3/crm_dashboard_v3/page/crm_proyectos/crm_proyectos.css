@@ -205,6 +205,36 @@
 .crm-mi-dia .crm-grupo:has(> .crm-al-dia) > .crm-grupo-cab { display: inline; }
 .crm-mi-dia .crm-grupo:has(> .crm-al-dia) > .crm-grupo-cab > * { vertical-align: middle; margin-right: var(--crm-esp-1); }
 .crm-mi-dia .crm-al-dia { display: inline; vertical-align: middle; }
+
+/* Leyenda de colores plegable (P2): nativa, funciona con teclado y lector de pantalla. */
+.crm-ayuda { margin: 0 0 var(--crm-esp-3); }
+.crm-ayuda > summary {
+	display: inline-flex;
+	align-items: center;
+	min-height: var(--crm-toque);
+	padding: 0 var(--crm-esp-2);
+	margin-left: calc(-1 * var(--crm-esp-2));
+	border-radius: var(--crm-radio-sm);
+	font-size: var(--crm-fs-sm);
+	font-weight: 600;
+	color: var(--crm-muted);
+	cursor: pointer;
+}
+/* Flecha dibujada con bordes (el display flex quita el marcador nativo); no la lee el lector. */
+.crm-ayuda > summary::-webkit-details-marker { display: none; }
+.crm-ayuda > summary::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	margin-right: var(--crm-esp-2);
+	border: solid currentColor;
+	border-width: 0 2px 2px 0;
+	transform: rotate(-45deg);
+}
+.crm-ayuda[open] > summary::before { transform: rotate(45deg); }
+.crm-ayuda > summary:hover { background: var(--crm-sutil); }
+.crm-ayuda[open] > summary { color: var(--crm-texto-2); }
+.crm-ayuda .crm-nota { margin: var(--crm-esp-1) 0 0; }
 .crm-boton-morado,
 .crm-boton-blanco,
 .crm-boton-rojo,
