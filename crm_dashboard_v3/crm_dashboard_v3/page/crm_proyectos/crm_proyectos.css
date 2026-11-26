@@ -74,7 +74,7 @@
 .crm-embudo-filtros { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .crm-campo-inline-sm { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--crm-muted); margin: 0; font-weight: 400; }
 .crm-boton-sec {
-	min-height: 36px;
+	min-height: var(--crm-toque);
 	padding: 0 12px;
 	border-radius: 8px;
 	border: 1px solid var(--crm-input-borde);
@@ -129,7 +129,7 @@
 	width: 100%;
 	align-items: center;
 	justify-content: center;
-	min-height: 36px;
+	min-height: var(--crm-toque);
 	padding: 4px 8px;
 	border: 1px dashed var(--crm-input-borde);
 	border-radius: 8px;
@@ -319,7 +319,7 @@
 .crm-op-nombre { font-size: 18px; font-weight: 700; margin-top: 6px; }
 .crm-op-meta { font-size: 12.5px; color: var(--crm-muted); margin-top: 2px; }
 .crm-op-meta strong { color: var(--crm-texto-2); }
-.crm-boton-acento { margin-top: 8px; min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--crm-acento); background: var(--crm-acento-bg); color: var(--crm-acento-osc); font-size: 12.5px; font-weight: 600; }
+.crm-boton-acento { margin-top: 8px; min-height: var(--crm-toque); padding: 0 12px; border-radius: 8px; border: 1px solid var(--crm-acento); background: var(--crm-acento-bg); color: var(--crm-acento-osc); font-size: 12.5px; font-weight: 600; }
 .crm-tabs { display: flex; gap: 2px; margin-top: 12px; border-bottom: 1px solid var(--crm-borde); }
 .crm-tab { min-height: 40px; padding: 0 10px; border: 0; background: none; font-size: 13px; font-weight: 600; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--crm-muted); }
 .crm-tab[aria-selected="true"] { border-bottom-color: var(--crm-acento); color: var(--crm-acento-osc); }
@@ -349,11 +349,10 @@
 .crm-req-falta { color: var(--crm-rojo-tx); }
 .crm-req-ir { border: 0; background: none; padding: 0 4px; margin-left: -4px; min-height: 32px; border-radius: 6px; color: inherit; font: inherit; text-align: left; text-decoration: underline dotted; text-underline-offset: 3px; }
 .crm-req-ir:hover { background: var(--crm-rojo-suave); }
-@media (pointer: coarse) { .crm-req-ir { min-height: 44px; } }
 .crm-otras { border-top: 1px solid var(--crm-linea); padding-top: 10px; margin-top: 2px; }
 .crm-otras-tit { font-size: 12px; font-weight: 600; color: var(--crm-muted); margin-bottom: 6px; }
 .crm-otras-botones { display: flex; flex-wrap: wrap; gap: 6px; }
-.crm-otra { min-height: 36px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--crm-input-borde); background: var(--crm-card); color: var(--crm-texto-2); }
+.crm-otra { min-height: var(--crm-toque); padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--crm-input-borde); background: var(--crm-card); color: var(--crm-texto-2); }
 .crm-otra-perder { border-color: var(--crm-rojo-borde); color: var(--crm-rojo); }
 .crm-otra[aria-expanded="true"] { border-color: var(--crm-acento); background: var(--crm-acento-bg); color: var(--crm-acento-osc); }
 .crm-boton-confirmar { min-height: 42px; border-radius: 9px; font-weight: 600; font-size: 13.5px; border: 0; color: #fff; background: #374151; }
@@ -433,7 +432,7 @@
 .crm-th-retail { color: var(--crm-retail-tx) !important; text-align: right; }
 .crm-th-total { color: var(--crm-texto) !important; text-align: right; background: var(--crm-sutil); }
 .crm-td-total { background: var(--crm-sutil); }
-.crm-celda { display: block; width: 100%; text-align: right; border: 0; border-radius: 6px; padding: 2px 4px; min-height: 36px; color: var(--crm-texto); background: transparent; }
+.crm-celda { display: block; width: 100%; text-align: right; border: 0; border-radius: 6px; padding: 2px 4px; min-height: var(--crm-toque); color: var(--crm-texto); background: transparent; }
 .crm-celda[aria-pressed="true"] { background: #fde68a; color: #111827; }
 .crm-celda strong,
 .crm-celda-plana strong { display: block; font-variant-numeric: tabular-nums; }
@@ -445,7 +444,7 @@
 .crm-fila-futura td { background: var(--crm-sutil); }
 .crm-cons-seccion { margin-top: 14px; }
 .crm-cons-seccion-tit { font-size: 13px; font-weight: 700; }
-.crm-boton-com { margin-top: 8px; min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--crm-verde); background: var(--crm-card); color: var(--crm-verde-tx); font-size: 12.5px; font-weight: 600; }
+.crm-boton-com { margin-top: 8px; min-height: var(--crm-toque); padding: 0 12px; border-radius: 8px; border: 1px solid var(--crm-verde); background: var(--crm-card); color: var(--crm-verde-tx); font-size: 12.5px; font-weight: 600; }
 .crm-tabla-facturas { min-width: 1080px; font-size: 12px; }
 .crm-tabla-facturas th { text-align: right; font-size: 10.5px; padding: 6px; }
 .crm-tabla-facturas td { padding: 6px; text-align: right; white-space: nowrap; }
@@ -484,15 +483,34 @@ button.crm-kpi-valor { text-decoration: underline dotted 1px; text-underline-off
 .crm-boton-texto:hover,
 button.crm-kpi-valor:hover,
 .crm-barra-col:hover { background: var(--crm-acento-bg); }
+/* Área de toque uniforme en pantallas táctiles (M3): --crm-toque vale 44 px ahí. Los controles
+   que con ratón miden 36 px ya lo leen arriba; estos son los que con ratón quedan más bajos
+   (28, 32, 34, 40 px). «.crm» delante sube la especificidad para alcanzar también reglas como
+   «.crm-kpi-pie .crm-boton-texto», que antes dejaban fuera al botón del indicador. */
 @media (pointer: coarse) {
-	.crm-columna-total,
-	.crm-estado-fila,
-	.crm-boton-texto,
-	.crm-enlace,
-	button.crm-kpi-valor,
-	.crm-tarjeta-accion,
-	.crm-columna-mas { min-height: 44px; }
-	.crm-boton-texto { display: inline-flex; align-items: center; }
+	.crm :is(
+		.crm-boton-texto,
+		.crm-enlace,
+		.crm-item-boton,
+		.crm-tarjeta-accion,
+		.crm-columna-total,
+		.crm-estado-fila,
+		button.crm-kpi-valor,
+		.crm-nombre-asesor,
+		.crm-req-ir,
+		.crm-cons-abrir,
+		.crm-pildora-sm,
+		.crm-tab,
+		.crm-ganar-modo,
+		.crm-boton-morado,
+		.crm-boton-blanco,
+		.crm-boton-rojo,
+		.crm-boton-verde
+	) { min-height: var(--crm-toque); }
+	.crm .crm-boton-texto { display: inline-flex; align-items: center; }
+	/* El botón grande ya mide más; no se achica. */
+	.crm .crm-boton-grande { min-height: 46px; }
+	.crm .crm-cerrar { width: var(--crm-toque); height: var(--crm-toque); }
 }
 
 /* Embudo en móvil y tableta (M1): se desplaza por etapa y siempre asoma la siguiente, para que

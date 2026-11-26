@@ -169,7 +169,7 @@
 .crm-select,
 .crm-input,
 .crm-textarea {
-	height: 36px;
+	height: var(--crm-toque);
 	border: 1px solid var(--crm-input-borde);
 	border-radius: 8px;
 	padding: 0 10px;
@@ -179,13 +179,13 @@
 	min-width: 0;
 }
 .crm-form .crm-select,
-.crm-form .crm-input { height: 40px; font-size: 14px; width: 100%; }
+.crm-form .crm-input { height: max(40px, var(--crm-toque)); font-size: 14px; width: 100%; }
 .crm-textarea { height: auto; padding: 8px 10px; font-size: 14px; resize: vertical; width: 100%; }
 
 /* Pestañas de vista y "Ver:" */
 .crm-vistas { display: flex; gap: 2px; margin: -4px 0 14px; border-bottom: 1px solid var(--crm-borde); flex-wrap: wrap; }
 .crm-vista {
-	min-height: 42px;
+	min-height: max(42px, var(--crm-toque));
 	padding: 0 14px;
 	border: 0;
 	background: none;
@@ -200,7 +200,7 @@
 .crm-ver { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -4px 0 14px; }
 .crm-ver-label { font-size: 12.5px; color: var(--crm-muted); margin-right: 4px; }
 .crm-pildora {
-	min-height: 36px;
+	min-height: var(--crm-toque);
 	padding: 0 14px;
 	border-radius: 999px;
 	font-size: 13px;
