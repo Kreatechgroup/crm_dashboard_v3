@@ -142,6 +142,8 @@
 .crm-item { border-radius: 8px; background: var(--crm-sutil); padding: 8px 10px; margin-bottom: 6px; min-width: 0; }
 .crm-item-boton { display: flex; width: 100%; justify-content: space-between; gap: 8px; border: 0; background: none; padding: 0; text-align: left; color: var(--crm-texto); min-height: 28px; align-items: center; }
 .crm-item-boton > span:first-child { min-width: 0; }
+/* Las cotizaciones vencidas de Mi día son enlaces: sin esto «.crm a» las pinta moradas y subrayadas (M4). */
+.crm a.crm-item-boton { color: var(--crm-texto); text-decoration: none; }
 .crm-item-boton strong { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .crm-item-sub { font-size: 11.5px; color: var(--crm-muted); }
 .crm-item-valor { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
