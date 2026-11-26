@@ -42,6 +42,13 @@
 	.crm-principal { gap: var(--crm-esp-3); margin-top: var(--crm-esp-3); }
 	.crm-avisos > .crm-nota { margin: 0; padding: var(--crm-esp-1) var(--crm-esp-3); }
 }
+/* Indicadores compactos en móvil (M6): menos relleno, cifra de 22 px y 8 px entre tarjetas. */
+@media (max-width: 599px) {
+	.crm-kpis { gap: var(--crm-esp-2); }
+	.crm-kpis > .crm-card { padding: var(--crm-esp-3) var(--crm-esp-4); }
+	.crm-kpi-valor { font-size: 22px; }
+	.crm-barra { margin: var(--crm-esp-2) 0 var(--crm-esp-1); }
+}
 /* Panel deslizante: detalle de la oportunidad y listas de cada indicador. */
 .crm-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 1030; width: min(460px, 100vw); overflow-y: auto; border-radius: 0; border-width: 0 0 0 1px; box-shadow: -8px 0 24px rgba(15, 23, 42, 0.18); animation: crm-entra 0.18s ease-out; }
 .crm-panel[hidden], .crm-panel-fondo[hidden] { display: none; }
