@@ -11,7 +11,7 @@
 	--crm-texto: #111827;
 	--crm-texto-2: #374151;
 	--crm-muted: #4b5563;
-	--crm-muted-2: #6b7280;
+	--crm-muted-2: #5b6270; /* 5.6:1 sobre la columna gris; #6b7280 daba 4.39:1 */
 	--crm-input-borde: #d1d5db;
 	--crm-columna: #f3f4f6;
 	--crm-sutil: #f9fafb;
