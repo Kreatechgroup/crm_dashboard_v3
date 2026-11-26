@@ -40,6 +40,54 @@
 	--crm-abierta: #94a3b8;
 	--crm-ganada: #059669;
 	--crm-perdida: #dc2626;
+
+	/* Tokens de diseño (fase 3). Declarados para usarlos en las fases siguientes; las reglas
+	   existentes todavía no los leen, así que no cambian nada visible. */
+	/* Espaciado, base 4 px. */
+	--crm-esp-1: 4px;
+	--crm-esp-2: 8px;
+	--crm-esp-3: 12px;
+	--crm-esp-4: 16px;
+	--crm-esp-5: 20px;
+	--crm-esp-6: 24px;
+	--crm-esp-8: 32px;
+	/* Tipografía. */
+	--crm-fs-xs: 11px;
+	--crm-fs-sm: 12px;
+	--crm-fs-md: 13px;
+	--crm-fs-base: 14px;
+	--crm-fs-lg: 16px;
+	--crm-fs-xl: 24px;
+	--crm-fs-cifra: 26px;
+	/* Radios: columna (lg) concéntrica con la tarjeta (md) y su relleno de 8 px. */
+	--crm-radio-sm: 6px;
+	--crm-radio-md: 8px;
+	--crm-radio-lg: 12px;
+	--crm-radio-pill: 999px;
+	/* Sombras. */
+	--crm-sombra-hover: 0 1px 2px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.06);
+	--crm-sombra-panel: -8px 0 24px rgba(15, 23, 42, 0.18);
+	/* Área de toque mínima: 36 px con ratón, 44 px en pantallas táctiles (abajo). */
+	--crm-toque: 36px;
+	/* Colores sueltos que hoy están escritos en crm_proyectos.css, con su versión oscura. */
+	--crm-borde-vacio: #c7cbd1;
+	--crm-boton-oscuro: #374151;
+	--crm-deshabilitado: #9ca3af;
+	--crm-resaltado: #fde68a;
+	--crm-resaltado-tx: #111827;
+	--crm-retail-bg: #eff6ff;
+	--crm-qt-bg: #dbeafe;
+	--crm-qt-tx: #1e3a8a;
+	--crm-fondo-modal: rgba(15, 23, 42, 0.25);
+	/* Color con significado (propuesta 3): rampa de morados por etapa, que se oscurece con la
+	   probabilidad, y tonos suaves. Verde, ámbar y rojo quedan solo para el semáforo. */
+	--crm-etapa-1: #ddd6fe;
+	--crm-etapa-2: #c4b5fd;
+	--crm-etapa-3: #8b5cf6;
+	--crm-etapa-4: #5b21b6;
+	--crm-ambar-suave: #fffbeb;
+	--crm-azul-tx: #1d4ed8;
+	--crm-azul-bg: #eff6ff;
 	background: var(--crm-fondo);
 	color: var(--crm-texto);
 	font-size: 14px;
@@ -80,6 +128,20 @@
 	--crm-rojo-borde: #7f1d1d;
 	--crm-gris-bg: var(--gray-700);
 	--crm-retail-tx: #93c5fd;
+	/* Tokens de la fase 3 en oscuro: sobre fondo oscuro la sombra no se ve; va un contorno. */
+	--crm-sombra-hover: 0 0 0 1px var(--crm-acento);
+	--crm-retail-bg: #172554;
+	--crm-etapa-1: #4c1d95;
+	--crm-etapa-2: #6d28d9;
+	--crm-etapa-3: #8b5cf6;
+	--crm-etapa-4: #c4b5fd;
+	--crm-ambar-suave: #2a1d06;
+	--crm-azul-tx: #93c5fd;
+	--crm-azul-bg: #172554;
+}
+
+@media (pointer: coarse) {
+	.crm { --crm-toque: 44px; }
 }
 
 .crm *,
