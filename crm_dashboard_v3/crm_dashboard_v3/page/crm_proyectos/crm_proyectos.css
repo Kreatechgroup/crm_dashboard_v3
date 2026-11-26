@@ -27,6 +27,21 @@
 
 /* Cuerpo: columna principal + panel */
 .crm-principal { min-width: 0; display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+/* Indicadores compactos en escritorio (desde 1024 px), para que el embudo entre en la
+   primera pantalla. Misma información, mismos colores y áreas de toque; solo menos aire.
+   En móvil y tableta quedan como arriba. El aviso «Etapa ≠ status» pasa a una línea más baja. */
+@media (min-width: 1024px) {
+	.crm-kpis { gap: var(--crm-esp-3); }
+	.crm-kpis > .crm-card { padding: var(--crm-esp-3) var(--crm-esp-4); }
+	.crm-kpi-valor { margin-top: var(--crm-esp-1); font-size: var(--crm-fs-xl); }
+	.crm-kpi-fila { margin-top: var(--crm-esp-1); }
+	.crm-kpi-pie,
+	.crm-aviso-ok,
+	.crm-aviso-mal { margin-top: 0; }
+	.crm-barra { margin: var(--crm-esp-2) 0 var(--crm-esp-1); }
+	.crm-principal { gap: var(--crm-esp-3); margin-top: var(--crm-esp-3); }
+	.crm-avisos > .crm-nota { margin: 0; padding: var(--crm-esp-1) var(--crm-esp-3); }
+}
 /* Panel deslizante: detalle de la oportunidad y listas de cada indicador. */
 .crm-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 1030; width: min(460px, 100vw); overflow-y: auto; border-radius: 0; border-width: 0 0 0 1px; box-shadow: -8px 0 24px rgba(15, 23, 42, 0.18); animation: crm-entra 0.18s ease-out; }
 .crm-panel[hidden], .crm-panel-fondo[hidden] { display: none; }
