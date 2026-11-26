@@ -149,7 +149,7 @@
 .crm *::after { box-sizing: border-box; }
 .crm button { cursor: pointer; font-family: inherit; }
 .crm a { color: var(--crm-acento); }
-.crm h1, .crm h2, .crm h3 { color: var(--crm-texto); }
+.crm h1, .crm h2, .crm h3 { color: var(--crm-texto); text-wrap: balance; }
 /* Foco visible con teclado en todo el tablero (WCAG 2.4.7): Frappe quita el contorno
    de los enlaces (a:focus { outline: 0 }); aquí vuelve para enlaces, botones y campos. */
 .crm :focus-visible,
@@ -228,6 +228,7 @@
 	margin: 0 0 12px;
 	font-size: 12px;
 	line-height: 1.5;
+	text-wrap: pretty;
 	color: var(--crm-texto-2);
 	background: var(--crm-sutil);
 	border-left: 3px solid #9ca3af;

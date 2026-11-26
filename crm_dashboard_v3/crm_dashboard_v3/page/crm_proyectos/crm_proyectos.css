@@ -12,12 +12,12 @@
 .crm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
 .crm-kpi-titulo { font-size: 12px; font-weight: 600; color: var(--crm-muted); }
 .crm-kpi-fila { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-.crm-kpi-valor { display: block; border: 0; background: none; padding: 0; margin-top: 8px; font-size: 26px; font-weight: 700; color: var(--crm-texto); text-align: left; }
+.crm-kpi-valor { display: block; border: 0; background: none; padding: 0; margin-top: 8px; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--crm-texto); text-align: left; }
 .crm-kpi-fila .crm-kpi-valor { margin-top: 0; }
 .crm-kpi-morado { color: var(--crm-acento-osc); }
 .crm-kpi-rojo { color: var(--crm-rojo); }
 .crm-kpi-de { color: var(--crm-muted); font-size: 13px; }
-.crm-kpi-pie { font-size: 12px; color: var(--crm-muted); margin-top: 4px; }
+.crm-kpi-pie { font-size: 12px; color: var(--crm-muted); margin-top: 4px; text-wrap: pretty; }
 .crm-kpi-pie .crm-boton-texto { font-size: 12px; font-weight: 700; color: var(--crm-acento-osc); text-decoration: underline; }
 .crm-aviso-ok { font-size: 12px; margin-top: 4px; font-weight: 600; color: var(--crm-verde-tx); }
 .crm-aviso-mal { font-size: 12px; margin-top: 4px; font-weight: 600; color: var(--crm-ambar-2); }
@@ -103,7 +103,7 @@
 .crm-columna-tit { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
 .crm-columna-tit strong { font-size: 13.5px; }
 .crm-columna-prob { font-size: 12px; font-weight: 600; color: var(--crm-acento-osc); }
-.crm-columna-total { font-size: 12px; color: var(--crm-muted); margin-top: 2px; border: 0; background: none; padding: 0 4px; margin-left: -4px; text-align: left; }
+.crm-columna-total { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--crm-muted); margin-top: 2px; border: 0; background: none; padding: 0 4px; margin-left: -4px; text-align: left; }
 .crm-columna-req { font-size: 11px; color: var(--crm-muted-2); margin-top: 4px; }
 .crm-vacia { font-size: 12px; color: var(--crm-muted-2); padding: 18px 8px; text-align: center; border: 1px dashed #c7cbd1; border-radius: 8px; }
 
@@ -156,7 +156,7 @@
 .crm-tarjeta-cliente { font-weight: 600; font-size: 12.5px; line-height: 1.3; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .crm-tarjeta-fila:first-child { align-items: flex-start; }
 /* El monto nunca se parte («Q» en una línea y la cifra en otra): cede espacio el tipo, que se recorta. */
-.crm-tarjeta-monto { font-size: 13px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+.crm-tarjeta-monto { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
 .crm-tarjeta-quien { font-size: 11px; font-weight: 600; color: var(--crm-acento); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .crm-tarjeta-quien-retail { color: var(--crm-retail-tx); }
 .crm-tarjeta-paso { display: block; font-size: 11px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--crm-texto-2); }
@@ -195,6 +195,26 @@
 .crm-tarjeta-caja,
 .crm-tarjeta-caja:hover { border-left: 3px solid var(--crm-rojo); }
 
+/* Respuesta al pasar el ratón por las tarjetas (B2): transición acotada (nunca «all») y sombra
+   suave (en oscuro, un contorno del acento). La tarjeta dentro de una caja no lleva sombra
+   propia: la lleva la caja. Sin transición si el sistema pide menos movimiento. */
+.crm-tarjeta,
+.crm-tarjeta-caja,
+.crm-tarjeta-accion,
+.crm-columna-mas {
+	transition-property: border-color, background-color, box-shadow;
+	transition-duration: 150ms;
+	transition-timing-function: ease-out;
+}
+.crm-columna > .crm-tarjeta:hover,
+.crm-tarjeta-caja:hover { box-shadow: var(--crm-sombra-hover); }
+@media (prefers-reduced-motion: reduce) {
+	.crm-tarjeta,
+	.crm-tarjeta-caja,
+	.crm-tarjeta-accion,
+	.crm-columna-mas { transition: none; }
+}
+
 /* Mi día (sección de todo el ancho) y panel deslizante */
 .crm-panel h2,
 .crm-mi-dia h2 { margin: 0; font-size: 16px; font-weight: 700; }
@@ -203,7 +223,7 @@
 .crm-grupo-cab { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
 .crm-grupo-cab .crm-badge { align-self: center; }
 .crm-grupo-cab strong { font-size: 13.5px; }
-.crm-grupo-ayuda { font-size: 12px; color: var(--crm-muted); }
+.crm-grupo-ayuda { font-size: 12px; color: var(--crm-muted); text-wrap: pretty; }
 .crm-grupo-metas { margin: 4px 0 0; font-size: 12px; color: var(--crm-texto-2); }
 /* min(260px, 100%) y minmax(0, 1fr): la rejilla nunca es más ancha que la pantalla (A1). */
 .crm-grupo-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 8px; margin: 8px 0 4px; }
@@ -224,7 +244,7 @@
 .crm a.crm-item-boton { color: var(--crm-texto); text-decoration: none; }
 .crm-item-boton strong { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .crm-item-sub { font-size: 11.5px; color: var(--crm-muted); }
-.crm-item-valor { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.crm-item-valor { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .crm-acciones-fila { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 
 /* Mi día compacto (A4). Sigue a todo el ancho y muestra los mismos pendientes; solo cambia
