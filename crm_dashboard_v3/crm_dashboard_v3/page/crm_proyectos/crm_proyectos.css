@@ -175,6 +175,36 @@
 .crm-item-sub { font-size: 11.5px; color: var(--crm-muted); }
 .crm-item-valor { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
 .crm-acciones-fila { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
+/* Mi día compacto (A4). Sigue a todo el ancho y muestra los mismos pendientes; solo cambia
+   cómo se acomodan para que el embudo suba a la primera pantalla.
+   · Desde 1024 px, los grupos en 2 columnas; título y subtítulo a todo el ancho.
+   · Dentro de cada grupo, lista de una columna.
+   · Desde 768 px, «Renovar/Perder» en la misma fila que la cotización.
+   · Grupo sin pendientes: «Todo al día.» en la línea del título (sin :has() se ve como antes). */
+@media (min-width: 1024px) {
+	/* 2 columnas de 1024 a ~1500 px; en monitores anchos caben 3 o 4 (todo el ancho, P4). */
+	.crm-mi-dia { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); column-gap: var(--crm-esp-6); align-items: start; }
+	.crm-mi-dia > h2,
+	.crm-mi-dia > .crm-panel-sub { grid-column: 1 / -1; }
+}
+.crm-mi-dia .crm-grupo { padding: var(--crm-esp-3) 0 var(--crm-esp-2); container-type: inline-size; }
+.crm-mi-dia .crm-grupo-items { grid-template-columns: minmax(0, 1fr); gap: var(--crm-esp-1); margin: var(--crm-esp-2) 0 0; }
+.crm-mi-dia .crm-item { padding: 6px var(--crm-esp-3); }
+.crm-mi-dia .crm-item-sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* «Renovar/Perder» en la fila de la cotización cuando el grupo mide 420 px o más (desde 768 px
+   de pantalla con 1 columna); en grupos angostos o sin @container, siguen debajo como antes. */
+@container (min-width: 420px) {
+	.crm-mi-dia .crm-item:has(> .crm-acciones-fila) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--crm-esp-1) var(--crm-esp-2); }
+	.crm-mi-dia .crm-item:has(> .crm-acciones-fila) > .crm-item-boton { flex: 1 1 0; width: auto; min-width: 0; }
+	.crm-mi-dia .crm-item > .crm-acciones-fila { margin: 0; flex-wrap: nowrap; }
+	/* «Confirmar pérdida» sigue debajo, a todo el ancho de la fila. */
+	.crm-mi-dia .crm-item > .crm-form { flex-basis: 100%; }
+}
+/* Grupo sin pendientes: «Todo al día.» sigue al texto del título, en la misma línea. */
+.crm-mi-dia .crm-grupo:has(> .crm-al-dia) > .crm-grupo-cab { display: inline; }
+.crm-mi-dia .crm-grupo:has(> .crm-al-dia) > .crm-grupo-cab > * { vertical-align: middle; margin-right: var(--crm-esp-1); }
+.crm-mi-dia .crm-al-dia { display: inline; vertical-align: middle; }
 .crm-boton-morado,
 .crm-boton-blanco,
 .crm-boton-rojo,
