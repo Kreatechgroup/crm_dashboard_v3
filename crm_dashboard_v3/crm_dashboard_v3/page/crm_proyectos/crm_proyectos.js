@@ -506,7 +506,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 					)}</span>
 				</p>
 			</details>
-			<div class="crm-scroll">
+			<div class="crm-scroll crm-scroll-embudo">
 				<div class="crm-columnas">${d.columnas.map((c) => this.html_columna(c)).join("")}</div>
 			</div>`;
 	}
@@ -647,7 +647,7 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		return `
 			<section aria-label="${__("En pausa y cerradas")}" class="crm-card">
 				<div class="crm-card-titulo"><h2>${__("En pausa y cerradas del mes")}</h2><span class="crm-sub">${__("No suman al pronóstico")}</span></div>
-				<div class="crm-scroll"><div class="crm-columnas crm-columnas-3">${cols}</div></div>
+				<div class="crm-scroll crm-scroll-embudo"><div class="crm-columnas crm-columnas-3">${cols}</div></div>
 			</section>`;
 	}
 

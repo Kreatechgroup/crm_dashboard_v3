@@ -495,6 +495,29 @@ button.crm-kpi-valor:hover,
 	.crm-boton-texto { display: inline-flex; align-items: center; }
 }
 
+/* Embudo en móvil y tableta (M1): se desplaza por etapa y siempre asoma la siguiente, para que
+   se note que hay más. Solo en el embudo y En pausa/cerradas (.crm-scroll-embudo): las tablas
+   que también usan .crm-scroll no cambian. */
+@media (max-width: 1023px) {
+	.crm-scroll-embudo { scroll-snap-type: x mandatory; overscroll-behavior-x: contain; }
+	.crm-scroll-embudo .crm-columna { scroll-snap-align: start; }
+	.crm-columnas { min-width: 0; grid-template-columns: repeat(4, minmax(240px, 46%)); }
+	.crm-columnas-3 { min-width: 0; grid-template-columns: repeat(3, minmax(240px, 46%)); }
+}
+@media (max-width: 599px) {
+	.crm-columnas,
+	.crm-columnas-3 { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 84%; }
+}
+
+/* Filtros del embudo en móvil (M2): rejilla de 2 columnas en vez de líneas sueltas; la
+   etiqueta va sobre su select y los botones ocupan toda la fila. */
+@media (max-width: 767px) {
+	.crm-embudo-filtros { margin-left: 0; width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--crm-esp-2); }
+	.crm-embudo-filtros .crm-campo-inline-sm { display: grid; gap: 2px; min-width: 0; }
+	.crm-embudo-filtros .crm-select { width: 100%; }
+	.crm-embudo-filtros .crm-boton-sec { grid-column: 1 / -1; width: 100%; }
+}
+
 @media (max-width: 767px) {
 	.crm-grupo-items { grid-template-columns: minmax(0, 1fr); }
 	.crm-cons-tarjetas { grid-template-columns: 1fr; }
