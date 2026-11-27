@@ -13,13 +13,39 @@ const PENDIENTES_OTROS = 3;
 // localStorage: si el usuario dejó abierta la leyenda de colores del embudo.
 const CLAVE_AYUDA = "crm-proyectos:ayuda-abierta";
 
+// Funciones de common.js que usa esta página. Si el navegador trae en caché un common.js
+// viejo le faltará alguna: se avisa en la página en vez de dejarla en blanco.
+const COMUNES_REQUERIDAS = ["TableroBase", "llamar", "llamar_en_linea", "abrir_lista", "confirmar", "cortar_lista", "plural"];
+
+// Aviso de carga fallida. No depende de common.js ni de common.css (pueden ser los que
+// fallaron): solo Frappe y el estilo .alert del escritorio. El error real va a la consola (F12).
+function mostrar_fallo_de_carga($contenedor, error) {
+	console.error("CRM Proyectos: no se pudo cargar la página.", error);
+	$contenedor.html(`
+		<div class="alert alert-warning" role="alert" style="margin: 24px 0;">
+			<p style="margin: 0 0 4px;"><strong>${__("No se pudo cargar CRM Proyectos.")}</strong></p>
+			<p style="margin: 0;">${__(
+				"Recarga la página con Ctrl+Shift+R (Cmd+Shift+R en Mac). Si sigue fallando, avisa a soporte."
+			)}</p>
+		</div>`);
+}
+
 frappe.pages["crm-proyectos"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
 		title: __("CRM Proyectos"),
 		single_column: true,
 	});
-	wrapper.tablero = new TableroProyectos(page);
+	try {
+		const comunes = window.crm_tableros || {};
+		const faltan = COMUNES_REQUERIDAS.filter((nombre) => typeof comunes[nombre] !== "function");
+		if (faltan.length) {
+			throw new Error(`common.js desactualizado o sin cargar; faltan: crm_tableros.${faltan.join(", crm_tableros.")}`);
+		}
+		wrapper.tablero = new TableroProyectos(page);
+	} catch (error) {
+		mostrar_fallo_de_carga($(page.main), error);
+	}
 };
 
 frappe.pages["crm-proyectos"].on_page_show = function (wrapper) {
@@ -77,6 +103,16 @@ class TableroProyectos extends crm_tableros.TableroBase {
 		this.recalculo_pendiente = false;
 		this.enlazar_eventos();
 		this.cargar();
+	}
+
+	// Si la carga falla y la página quedaría vacía (primera carga) o se rompió el pintado en el
+	// navegador (Error de JavaScript), se muestra el aviso. Un error del servidor con el tablero
+	// ya pintado lo informa Frappe y el tablero se conserva. El error se propaga igual.
+	cargar() {
+		return super.cargar().catch((error) => {
+			if (error instanceof Error || !this.$body.children().length) mostrar_fallo_de_carga(this.$body, error);
+			throw error;
+		});
 	}
 
 	actividad_vacia() {

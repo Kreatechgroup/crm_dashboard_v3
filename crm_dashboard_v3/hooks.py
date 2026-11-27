@@ -1,3 +1,7 @@
+# Alias con «_»: Frappe trata como hook todo nombre público de este módulo.
+import hashlib as _hashlib
+from pathlib import Path as _Path
+
 app_name = "crm_dashboard_v3"
 app_title = "CRM Dashboard V3"
 app_publisher = "Kreatech"
@@ -27,8 +31,27 @@ app_license = "mit"
 # include js, css files in header of desk.html
 # Plantilla común de los tableros CRM: debe estar cargada antes que el script de
 # cada página (crm-proyectos hereda de crm_tableros.TableroBase).
-app_include_css = "/assets/crm_dashboard_v3/css/crm_tableros/common.css"
-app_include_js = "/assets/crm_dashboard_v3/js/crm_tableros/common.js"
+#
+# Las URLs llevan ?v=<huella del contenido>: nginx sirve /assets con caché larga y, sin
+# versión, el navegador puede seguir usando un common.js viejo junto a un crm_proyectos.js
+# nuevo (este llega dentro del documento Page, no por URL) y la página queda en blanco.
+# La huella cambia sola cuando cambia el archivo; Frappe recalcula los hooks al limpiar
+# caché (bench migrate / bench clear-cache), así que no hay versión que subir a mano.
+_ASSETS_COMUNES = _Path(__file__).resolve().parent / "public"
+
+
+def _con_version(ruta_publica):
+	"""URL de /assets/crm_dashboard_v3/<ruta_publica> con ?v= según el contenido del archivo."""
+	try:
+		huella = _hashlib.md5((_ASSETS_COMUNES / ruta_publica).read_bytes(), usedforsecurity=False).hexdigest()[:10]
+	except OSError:
+		# Sin el archivo (p. ej. instalación incompleta) la URL queda sin versión, como antes.
+		return f"/assets/crm_dashboard_v3/{ruta_publica}"
+	return f"/assets/crm_dashboard_v3/{ruta_publica}?v={huella}"
+
+
+app_include_css = _con_version("css/crm_tableros/common.css")
+app_include_js = _con_version("js/crm_tableros/common.js")
 
 # include js, css files in header of web template
 # web_include_css = "/assets/crm_dashboard_v3/css/crm_dashboard_v3.css"
